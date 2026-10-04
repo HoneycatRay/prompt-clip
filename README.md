@@ -8,12 +8,7 @@ Install Node.js and the Rust toolchain. On Windows, also install the Microsoft C
 
 Prompt Markdown files are stored in the app's local `Prompts` data folder by default. Use **選擇資料夾** in the app to use another existing folder; the selected folder is remembered on this device.
 
-On Windows, add Cargo to `PATH` and, if the project path contains spaces, set Cargo's build output directory to a path without spaces:
-
-```powershell
-$env:PATH = "$env:USERPROFILE\.cargo\bin;$env:PATH"
-$env:CARGO_TARGET_DIR = "$env:USERPROFILE\.cargo\target\prompt-clip"
-```
+The `npm run tauri` command automatically adds Rust's standard `~/.cargo/bin` directory to its `PATH`. On Windows it also uses a build output directory without spaces by default, which is useful when the project path contains spaces. If Rust is installed in a non-standard location, add its `bin` directory to `PATH` before starting the app.
 
 From the project root, install dependencies once and start the desktop app:
 

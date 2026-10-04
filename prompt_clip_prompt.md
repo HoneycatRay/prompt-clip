@@ -34,7 +34,7 @@
 
 2. **格式支援**：支援 `.md` 檔案，且可解析 YAML Frontmatter 格式：
 
-   ```
+   ```yaml
    ---
    title: "程式碼重構助理"
    tags: ["Coding", "Refactor"]
