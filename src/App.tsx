@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { emit, listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { open } from "@tauri-apps/plugin-dialog";
@@ -11,7 +12,22 @@ type PromptFile = {
   content: string;
 };
 
+type PromptDraft = {
+  title: string;
+  content: string;
+  metadata?: Record<string, unknown> | null;
+};
+
 const directoryStorageKey = "prompt-clip.prompt-directory";
+const themeStorageKey = "prompt-clip.theme";
+const sidebarStorageKey = "prompt-clip.sidebar-collapsed";
+const onboardingStorageKey = "prompt-clip.onboarding-complete";
+const quickWindow = getCurrentWindow().label === "quick";
+type Theme = "light" | "dark";
+
+function BrandMark({ className = "" }: { className?: string }) {
+  return <img className={className} src="/prompt-clip-mark.svg" alt="" aria-hidden="true" />;
+}
 
 function promptVariables(content: string) {
   return [
@@ -36,6 +52,71 @@ function App() {
   const [notice, setNotice] = useState("");
   const [variablePrompt, setVariablePrompt] = useState<PromptFile | null>(null);
   const [variableValues, setVariableValues] = useState<Record<string, string>>({});
+  const [showImporter, setShowImporter] = useState(false);
+  const [jsonText, setJsonText] = useState("");
+  const [importQueue, setImportQueue] = useState<PromptDraft[]>([]);
+  const [importIndex, setImportIndex] = useState(0);
+  const [importConflict, setImportConflict] = useState<PromptFile | null>(null);
+  const [checkingImportConflict, setCheckingImportConflict] = useState(false);
+  const [processingImport, setProcessingImport] = useState(false);
+  const [importedCount, setImportedCount] = useState(0);
+  const [skippedCount, setSkippedCount] = useState(0);
+  const [shortcut, setShortcut] = useState("Ctrl+Shift+Space");
+  const [shortcutDraft, setShortcutDraft] = useState("");
+  const [recordingShortcut, setRecordingShortcut] = useState(false);
+  const [savingShortcut, setSavingShortcut] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [theme, setTheme] = useState<Theme>(
+    () => (localStorage.getItem(themeStorageKey) === "dark" ? "dark" : "light"),
+  );
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(
+    () => localStorage.getItem(sidebarStorageKey) === "true",
+  );
+  const [showWelcome, setShowWelcome] = useState(false);
+
+  useEffect(() => {
+    if (!quickWindow && localStorage.getItem(onboardingStorageKey) !== "true") {
+      setShowWelcome(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!quickWindow) return;
+    let active = true;
+    let unlisten: (() => void) | undefined;
+    void listen<Theme>("prompt-clip-theme-changed", (event) => {
+      if (event.payload === "light" || event.payload === "dark") {
+        setTheme(event.payload);
+      }
+    }).then((dispose) => {
+      if (active) unlisten = dispose;
+      else dispose();
+    });
+    return () => {
+      active = false;
+      unlisten?.();
+    };
+  }, []);
+
+  function toggleTheme() {
+    const nextTheme = theme === "light" ? "dark" : "light";
+    setTheme(nextTheme);
+    localStorage.setItem(themeStorageKey, nextTheme);
+    void emit("prompt-clip-theme-changed", nextTheme).catch((cause) => {
+      setError(`無法同步深色模式：${String(cause)}`);
+    });
+  }
+
+  function toggleSidebar() {
+    const collapsed = !sidebarCollapsed;
+    setSidebarCollapsed(collapsed);
+    localStorage.setItem(sidebarStorageKey, String(collapsed));
+  }
+
+  function dismissWelcome() {
+    localStorage.setItem(onboardingStorageKey, "true");
+    setShowWelcome(false);
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -43,23 +124,22 @@ function App() {
     async function initialize() {
       try {
         const defaultDirectory = await invoke<string>("default_prompt_directory");
-        const directory =
-          localStorage.getItem(directoryStorageKey) ?? defaultDirectory;
+        const directory = localStorage.getItem(directoryStorageKey) ?? defaultDirectory;
         const files = await invoke<PromptFile[]>("read_prompt_files", {
           folderPath: directory,
         });
+        const savedShortcut = await invoke<string>("get_quick_shortcut");
         if (cancelled) return;
         setFolderPath(directory);
         setPrompts(files);
+        setShortcut(savedShortcut);
         if (files.length > 0) {
           setSelectedFileName(files[0].fileName);
           setTitle(files[0].title);
           setContent(files[0].content);
         }
       } catch (cause) {
-        if (!cancelled) {
-          setError(`無法載入 Prompt：${String(cause)}`);
-        }
+        if (!cancelled) setError(`無法載入 Prompt：${String(cause)}`);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -71,13 +151,68 @@ function App() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!quickWindow) return;
+    let active = true;
+    let unlisten: (() => void) | undefined;
+    void listen<string>("prompt-folder-changed", async (event) => {
+      localStorage.setItem(directoryStorageKey, event.payload);
+      setFolderPath(event.payload);
+      try {
+        setPrompts(
+          await invoke<PromptFile[]>("read_prompt_files", {
+            folderPath: event.payload,
+          }),
+        );
+      } catch (cause) {
+        setError(`無法載入 Prompt 資料夾：${String(cause)}`);
+      }
+    }).then((dispose) => {
+      if (active) unlisten = dispose;
+      else dispose();
+    });
+    return () => {
+      active = false;
+      unlisten?.();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!recordingShortcut) return;
+    function captureShortcut(event: KeyboardEvent) {
+      event.preventDefault();
+      event.stopPropagation();
+      if (["Control", "Shift", "Alt", "Meta"].includes(event.key)) return;
+
+      const modifiers = [
+        event.ctrlKey && "Ctrl",
+        event.altKey && "Alt",
+        event.shiftKey && "Shift",
+        event.metaKey && "Super",
+      ].filter(Boolean);
+      const key =
+        event.code === "Space"
+          ? "Space"
+          : event.code.startsWith("Key")
+            ? event.code.slice(3)
+            : event.code.startsWith("Digit")
+              ? event.code.slice(5)
+              : event.key.length === 1
+                ? event.key.toUpperCase()
+                : event.key;
+      if (modifiers.length === 0) return;
+      setShortcutDraft([...modifiers, key].join("+"));
+      setRecordingShortcut(false);
+    }
+    window.addEventListener("keydown", captureShortcut, true);
+    return () => window.removeEventListener("keydown", captureShortcut, true);
+  }, [recordingShortcut]);
+
   const filteredPrompts = useMemo(() => {
     const query = search.trim().toLocaleLowerCase();
     if (!query) return prompts;
     return prompts.filter((prompt) =>
-      `${prompt.title}\n${prompt.content}`
-        .toLocaleLowerCase()
-        .includes(query),
+      `${prompt.title}\n${prompt.content}`.toLocaleLowerCase().includes(query),
     );
   }, [prompts, search]);
 
@@ -88,10 +223,7 @@ function App() {
     const hasUnsavedChanges = selectedPrompt
       ? selectedPrompt.title !== title || selectedPrompt.content !== content
       : Boolean(title || content);
-    return (
-      !hasUnsavedChanges ||
-      window.confirm("目前的變更尚未儲存，確定要捨棄嗎？")
-    );
+    return !hasUnsavedChanges || window.confirm("目前的變更尚未儲存，確定要捨棄嗎？");
   }
 
   function resetEditor() {
@@ -102,18 +234,10 @@ function App() {
     setError("");
   }
 
-  function startNewPrompt() {
-    if (!confirmDiscardChanges()) return;
-    resetEditor();
-  }
-
-  function selectPrompt(prompt: PromptFile) {
-    if (!confirmDiscardChanges()) return;
-    setSelectedFileName(prompt.fileName);
-    setTitle(prompt.title);
-    setContent(prompt.content);
-    setNotice("");
-    setError("");
+  async function refreshPrompts() {
+    if (!folderPath) return;
+    const files = await invoke<PromptFile[]>("read_prompt_files", { folderPath });
+    setPrompts(files);
   }
 
   async function copyPrompt(prompt: PromptFile, values?: Record<string, string>) {
@@ -137,14 +261,13 @@ function App() {
   }
 
   async function usePrompt(prompt: PromptFile) {
-    if (!confirmDiscardChanges()) return;
+    if (!quickWindow && !confirmDiscardChanges()) return;
     setNotice("");
     const variables = promptVariables(prompt.content);
     if (variables.length === 0) {
       await copyPrompt(prompt);
       return;
     }
-
     setVariablePrompt(prompt);
     setVariableValues(Object.fromEntries(variables.map((variable) => [variable, ""])));
     setError("");
@@ -159,6 +282,22 @@ function App() {
     }
   }
 
+  async function openQuickWindow() {
+    try {
+      await invoke("show_quick_window_command");
+    } catch (cause) {
+      setError(`無法開啟取用視窗：${String(cause)}`);
+    }
+  }
+
+  async function openMainWindow() {
+    try {
+      await invoke("open_main_window");
+    } catch (cause) {
+      setError(`無法回到主 App：${String(cause)}`);
+    }
+  }
+
   async function chooseFolder() {
     if (!confirmDiscardChanges()) return;
     setError("");
@@ -170,13 +309,13 @@ function App() {
         title: "選擇 Prompt 資料夾",
       });
       if (typeof selected !== "string") return;
-
       const files = await invoke<PromptFile[]>("read_prompt_files", {
         folderPath: selected,
       });
       localStorage.setItem(directoryStorageKey, selected);
       setFolderPath(selected);
       setPrompts(files);
+      await emit("prompt-folder-changed", selected);
       if (files.length > 0) {
         setSelectedFileName(files[0].fileName);
         setTitle(files[0].title);
@@ -195,7 +334,6 @@ function App() {
       setError("尚未載入 Prompt 資料夾，請重新啟動應用程式。");
       return;
     }
-
     setSaving(true);
     setError("");
     setNotice("");
@@ -206,10 +344,7 @@ function App() {
         content,
         fileName: selectedFileName,
       });
-      const files = await invoke<PromptFile[]>("read_prompt_files", {
-        folderPath,
-      });
-      setPrompts(files);
+      await refreshPrompts();
       setSelectedFileName(saved.fileName);
       setTitle(saved.title);
       setContent(saved.content);
@@ -224,17 +359,11 @@ function App() {
   async function deletePrompt() {
     if (!selectedFileName || !folderPath) return;
     if (!window.confirm(`確定要刪除「${title}」嗎？此操作無法復原。`)) return;
-
     setError("");
     setNotice("");
     try {
-      await invoke("delete_prompt_file", {
-        folderPath,
-        fileName: selectedFileName,
-      });
-      const files = await invoke<PromptFile[]>("read_prompt_files", {
-        folderPath,
-      });
+      await invoke("delete_prompt_file", { folderPath, fileName: selectedFileName });
+      const files = await invoke<PromptFile[]>("read_prompt_files", { folderPath });
       setPrompts(files);
       if (files.length > 0) {
         setSelectedFileName(files[0].fileName);
@@ -249,236 +378,711 @@ function App() {
     }
   }
 
-  return (
-    <main className="app-shell">
-      <header className="topbar">
-        <div className="brand">
-          <div className="brand-mark" aria-hidden="true">
-            P
+  async function queueDrafts(drafts: PromptDraft[]) {
+    if (!drafts.length) {
+      setError("沒有找到可匯入的 Prompt。");
+      return;
+    }
+    if (drafts.length > 500) {
+      setError("單次最多可匯入 500 個 Prompt。");
+      return;
+    }
+    const totalBytes = drafts.reduce(
+      (total, draft) =>
+        total +
+        new TextEncoder().encode(draft.title).byteLength +
+        new TextEncoder().encode(draft.content).byteLength,
+      0,
+    );
+    if (totalBytes > 10 * 1024 * 1024) {
+      setError("單次匯入的文字總量不可超過 10 MB。");
+      return;
+    }
+    if (drafts.some((draft) => !draft.title.trim() || typeof draft.content !== "string")) {
+      setError("每筆 Prompt 都必須有非空標題與文字內容。");
+      return;
+    }
+    setError("");
+    setNotice("");
+    setImportQueue(drafts);
+    setImportIndex(0);
+    setImportedCount(0);
+    setSkippedCount(0);
+    setImportConflict(null);
+    setCheckingImportConflict(true);
+    setShowImporter(false);
+    try {
+      const conflict = await invoke<PromptFile | null>("find_import_conflict", {
+        folderPath,
+        title: drafts[0].title,
+      });
+      setImportConflict(conflict);
+      setCheckingImportConflict(false);
+    } catch (cause) {
+      setImportQueue([]);
+      setCheckingImportConflict(false);
+      setError(`無法檢查匯入項目：${String(cause)}`);
+    }
+  }
+
+  async function advanceImport(nextIndex: number, imported: number, skipped: number) {
+    if (nextIndex >= importQueue.length) {
+      setImportQueue([]);
+      setImportConflict(null);
+      try {
+        await refreshPrompts();
+        setNotice(`匯入完成：新增／覆寫 ${imported} 個，略過 ${skipped} 個。`);
+      } catch (cause) {
+        setError(`匯入已完成，但無法重新載入清單：${String(cause)}`);
+      }
+      return;
+    }
+    setImportIndex(nextIndex);
+    setImportConflict(null);
+    setCheckingImportConflict(true);
+    try {
+      const conflict = await invoke<PromptFile | null>("find_import_conflict", {
+        folderPath,
+        title: importQueue[nextIndex].title,
+      });
+      setImportConflict(conflict);
+      setCheckingImportConflict(false);
+    } catch (cause) {
+      setImportQueue([]);
+      setCheckingImportConflict(false);
+      setError(`無法檢查匯入項目：${String(cause)}`);
+    }
+  }
+
+  async function decideImport(overwrite: boolean) {
+    if (processingImport || checkingImportConflict) return;
+    const draft = importQueue[importIndex];
+    if (!draft) return;
+    setProcessingImport(true);
+    let imported = importedCount;
+    let skipped = skippedCount;
+    try {
+      if (overwrite || !importConflict) {
+        await invoke<PromptFile>("import_prompt_file", {
+          folderPath,
+          title: draft.title.trim(),
+          content: draft.content,
+          overwriteFileName: overwrite ? importConflict?.fileName ?? null : null,
+          metadata: draft.metadata ?? null,
+        });
+        imported += 1;
+        setImportedCount(imported);
+      } else {
+        skipped += 1;
+        setSkippedCount(skipped);
+      }
+      await advanceImport(importIndex + 1, imported, skipped);
+    } catch (cause) {
+      setError(`匯入「${draft.title}」失敗：${String(cause)}`);
+    } finally {
+      setProcessingImport(false);
+    }
+  }
+
+  async function readSelectedFiles(archive: boolean) {
+    setError("");
+    try {
+      const selected = await open({
+        multiple: true,
+        title: archive ? "選擇 ZIP 壓縮檔" : "選擇 Markdown 檔案",
+        filters: [
+          {
+            name: archive ? "ZIP" : "Markdown",
+            extensions: [archive ? "zip" : "md"],
+          },
+        ],
+      });
+      if (!selected) return;
+      const paths = Array.isArray(selected) ? selected : [selected];
+      const drafts = await invoke<PromptDraft[]>(
+        archive ? "read_zip_import" : "read_markdown_import",
+        { paths },
+      );
+      await queueDrafts(drafts);
+    } catch (cause) {
+      setError(`讀取匯入檔案失敗：${String(cause)}`);
+    }
+  }
+
+  async function importJsonText() {
+    try {
+      const parsed: unknown = JSON.parse(jsonText);
+      const list = Array.isArray(parsed)
+        ? parsed
+        : parsed && typeof parsed === "object" && "prompts" in parsed
+          ? (parsed as { prompts: unknown }).prompts
+          : null;
+      if (!Array.isArray(list)) {
+        throw new Error("JSON 頂層必須是陣列，或包含 prompts 陣列。");
+      }
+      const drafts = list.map((item, index) => {
+        if (
+          !item ||
+          typeof item !== "object" ||
+          !("title" in item) ||
+          !("content" in item) ||
+          typeof item.title !== "string" ||
+          typeof item.content !== "string"
+        ) {
+          throw new Error(`第 ${index + 1} 筆必須包含字串 title 與 content。`);
+        }
+        return { title: item.title, content: item.content };
+      });
+      await queueDrafts(drafts);
+    } catch (cause) {
+      setError(`文字格式不正確：${String(cause)}`);
+    }
+  }
+
+  async function saveShortcut() {
+    setSavingShortcut(true);
+    setError("");
+    try {
+      const saved = await invoke<string>("set_quick_shortcut", {
+        shortcut: shortcutDraft,
+      });
+      setShortcut(saved);
+      setShortcutDraft("");
+      setNotice(`取用視窗快捷鍵已設為 ${saved}。`);
+    } catch (cause) {
+      setError(String(cause));
+    } finally {
+      setSavingShortcut(false);
+    }
+  }
+
+  const importStep = importQueue[importIndex];
+
+  if (quickWindow) {
+    return (
+      <main className="quick-shell" data-theme={theme}>
+        <header className="quick-header">
+          <div className="quick-brand">
+            <BrandMark className="quick-brand-mark" />
+            <div>
+              <p className="eyebrow">PROMPT CLIP</p>
+              <h1>取用 Prompt</h1>
+            </div>
           </div>
-          <div>
-            <h1>Prompt Clip</h1>
-            <p>本地 Prompt 管理</p>
-          </div>
+          <button
+            className="icon-button"
+            onClick={() => void openMainWindow()}
+            title="回到主 App"
+            aria-label="回到主 App"
+          >
+            ↗
+          </button>
+        </header>
+        <label className="search-box quick-search">
+          <span aria-hidden="true">⌕</span>
+          <input
+            autoFocus
+            type="search"
+            placeholder="搜尋 Prompt"
+            value={search}
+            onChange={(event) => setSearch(event.currentTarget.value)}
+          />
+        </label>
+        {error && <p className="message message-error">{error}</p>}
+        <div className="quick-list" aria-label="Prompt 清單">
+          {loading ? (
+            <p className="list-message">載入中…</p>
+          ) : filteredPrompts.length ? (
+            filteredPrompts.map((prompt) => (
+              <button
+                className="quick-prompt"
+                key={prompt.fileName}
+                onClick={() => void usePrompt(prompt)}
+              >
+                <span>{prompt.title}</span>
+                <small>{prompt.content || "尚無內容"}</small>
+              </button>
+            ))
+          ) : (
+            <p className="list-message">
+              {search ? "找不到符合的 Prompt" : "尚無 Prompt，請先回主 App 新增。"}
+            </p>
+          )}
         </div>
-        <div className="topbar-actions">
-          <span className="shortcut-hint">
-            快速切換 <kbd>{navigator.platform.includes("Mac") ? "⌘" : "Ctrl"}</kbd> +
-            <kbd>Shift</kbd> + <kbd>P</kbd>
-          </span>
-          <button className="button button-secondary" onClick={chooseFolder}>
-            選擇資料夾
+        <footer className="quick-footer">
+          <span>按一下即可複製到剪貼簿</span>
+          <button className="text-button" onClick={() => void openMainWindow()}>
+            回到主 App
+          </button>
+        </footer>
+        {variablePrompt && (
+          <VariableDialog
+            prompt={variablePrompt}
+            values={variableValues}
+            error={error}
+            setValues={setVariableValues}
+            onCancel={() => setVariablePrompt(null)}
+            onSubmit={copyFilledPrompt}
+          />
+        )}
+      </main>
+    );
+  }
+
+  return (
+    <main className={`app-shell ${sidebarCollapsed ? "sidebar-collapsed" : ""}`} data-theme={theme}>
+      <aside className={`sidebar ${sidebarCollapsed ? "" : "is-expanded"}`}>
+        <div className="sidebar-head">
+          <div className="brand">
+            <BrandMark className="brand-mark" />
+            <div>
+              <h1>Prompt Clip</h1>
+              <p>本機提示詞資料庫</p>
+            </div>
+          </div>
+          <button
+            className="sidebar-toggle"
+            onClick={toggleSidebar}
+            title={sidebarCollapsed ? "展開側邊欄" : "收起側邊欄"}
+            aria-label={sidebarCollapsed ? "展開側邊欄" : "收起側邊欄"}
+          >
+            <span aria-hidden="true">{sidebarCollapsed ? "»" : "«"}</span>
           </button>
         </div>
-      </header>
 
-      <div className="workspace">
-        <aside className="sidebar">
-          <div className="sidebar-heading">
-            <div>
-              <h2>Prompts</h2>
-              <span className="count-label">{prompts.length} 個範本</span>
-            </div>
+        <nav className="primary-nav" aria-label="主要功能">
+          <span className="nav-section-label">工作區</span>
+          <button className="nav-item active" title="提示詞" aria-label="提示詞">
+            <span aria-hidden="true">▤</span> 提示詞
+            <span className="nav-count">{prompts.length}</span>
+          </button>
+          <button
+            className="nav-item"
+            onClick={() => setShowSettings(true)}
+            title="設定"
+            aria-label="設定"
+          >
+            <span aria-hidden="true">⚙</span> 設定
+          </button>
+        </nav>
+
+        <div className="sidebar-bottom">
+          <span className="nav-section-label">資料夾</span>
+          <div className="folder-path" title={folderPath}>
+            <span aria-hidden="true">▰</span>
+            <span>{folderPath || "載入中…"}</span>
+          </div>
+          <button className="text-button folder-change" onClick={chooseFolder}>
+            選擇其他資料夾
+          </button>
+          <button
+            className="nav-item theme-toggle"
+            onClick={toggleTheme}
+            title={theme === "light" ? "切換深色模式" : "切換淺色模式"}
+            aria-label={theme === "light" ? "切換深色模式" : "切換淺色模式"}
+          >
+            <span aria-hidden="true">{theme === "light" ? "☾" : "☀"}</span>
+            {theme === "light" ? "深色模式" : "淺色模式"}
+          </button>
+        </div>
+      </aside>
+
+      <section className="main-panel">
+        <header className="page-header">
+          <div>
+            <span className="eyebrow">個人工作區</span>
+            <h2 className="page-title">
+              <BrandMark className="page-title-mark" />
+              提示詞
+            </h2>
+            <p>整理常用內容，需要時快速複製。</p>
+          </div>
+          <div className="header-actions">
             <button
-              className="button button-primary button-compact"
-              onClick={startNewPrompt}
-              aria-label="新增 Prompt"
+              className="button button-secondary shortcut-action"
+              onClick={() => void openQuickWindow()}
             >
-              <span aria-hidden="true">＋</span> 新增
+              <span className="shortcut-action-label">開啟取用視窗</span>
+              <kbd>{shortcut}</kbd>
+            </button>
+            <button className="button button-secondary" onClick={() => setShowImporter(true)}>
+              匯入
+            </button>
+            <button className="button button-primary" onClick={() => {
+              if (confirmDiscardChanges()) resetEditor();
+            }}>
+              新增提示詞
             </button>
           </div>
+        </header>
 
-          <label className="search-box">
-            <span aria-hidden="true">⌕</span>
-            <input
-              type="search"
-              placeholder="搜尋標題或內容"
-              value={search}
-              onChange={(event) => setSearch(event.currentTarget.value)}
-            />
-          </label>
-
-          <div className="prompt-list" aria-label="Prompt 清單">
-            {loading ? (
-              <p className="list-message">載入中…</p>
-            ) : filteredPrompts.length === 0 ? (
-              <p className="list-message">
-                {search ? "找不到符合的 Prompt" : "還沒有 Prompt，新增一個開始使用。"}
-              </p>
-            ) : (
-              filteredPrompts.map((prompt) => (
-                <div
-                  className={`prompt-item ${
-                    selectedFileName === prompt.fileName ? "is-selected" : ""
-                  }`}
-                  key={prompt.fileName}
-                >
-                  <button
-                    className="prompt-item-main"
-                    onClick={() => void usePrompt(prompt)}
-                    title="使用並複製 Prompt"
-                  >
-                    <span className="prompt-item-title">{prompt.title}</span>
-                    <span className="prompt-item-preview">
-                      {prompt.content || "尚無內容"}
-                    </span>
-                    <span className="prompt-item-file">{prompt.fileName}</span>
-                  </button>
-                  <button
-                    className="prompt-edit-button"
-                    onClick={() => selectPrompt(prompt)}
-                    title="編輯 Prompt"
-                    aria-label={`編輯 ${prompt.title}`}
-                  >
-                    編輯
-                  </button>
-                </div>
-              ))
-            )}
-          </div>
-
-          <div className="folder-card">
-            <span className="folder-icon" aria-hidden="true">
-              ▰
-            </span>
-            <div>
-              <span className="folder-label">儲存位置</span>
-              <span className="folder-path" title={folderPath}>
-                {folderPath || "正在載入…"}
-              </span>
-            </div>
-          </div>
-        </aside>
-
-        <section className="editor-panel">
-          <div className="editor-heading">
-            <div>
-              <span className="eyebrow">
-                {selectedFileName ? "編輯範本" : "建立範本"}
-              </span>
-              <h2>{selectedFileName ? "Prompt 詳細資料" : "新增 Prompt"}</h2>
-            </div>
-            <span className="markdown-badge">.MD · 本機</span>
-          </div>
-
-          {error && (
-            <div className="message message-error" role="alert">
-              {error}
-            </div>
-          )}
-          {notice && (
-            <div className="message message-success" role="status">
-              {notice}
-            </div>
-          )}
-
-          <form className="prompt-form" onSubmit={savePrompt}>
-            <label className="field">
-              <span>標題</span>
+        <div className="workspace">
+          <section className="library-panel">
+            <label className="search-box">
+              <span aria-hidden="true">⌕</span>
               <input
-                autoFocus
-                maxLength={120}
-                placeholder="例如：程式碼審查助理"
-                required
-                value={title}
-                onChange={(event) => setTitle(event.currentTarget.value)}
+                type="search"
+                placeholder="搜尋標題或內容"
+                value={search}
+                onChange={(event) => setSearch(event.currentTarget.value)}
               />
             </label>
-
-            <label className="field content-field">
-              <span className="field-label-row">
-                Prompt 內容
-                <span>支援 Markdown</span>
-              </span>
-              <textarea
-                placeholder={"描述你想重複使用的 Prompt…\n\n可使用 {變數名稱} 作為動態填寫欄位。"}
-                value={content}
-                onChange={(event) => setContent(event.currentTarget.value)}
-              />
-            </label>
-
-            <div className="file-hint">
-              <span aria-hidden="true">↳</span>
-              {selectedFileName
-                ? `變更會直接儲存至 ${selectedFileName}`
-                : "儲存時會在所選資料夾建立新的 .md 檔案"}
+            <div className="library-heading">
+              <span>全部提示詞</span>
+              <span className="count-label">{filteredPrompts.length}</span>
             </div>
-
-            <div className="form-actions">
-              {selectedFileName && (
-                <button
-                  className="button button-danger"
-                  type="button"
-                  onClick={deletePrompt}
-                >
-                  刪除
-                </button>
+            <div className="prompt-list" aria-label="Prompt 清單">
+              {loading ? (
+                <p className="list-message">載入中…</p>
+              ) : filteredPrompts.length === 0 ? (
+                <p className="list-message">
+                  {search ? "找不到符合的項目" : "尚無提示詞，新增一筆開始整理。"}
+                </p>
+              ) : (
+                filteredPrompts.map((prompt) => (
+                  <article
+                    className={`prompt-item ${selectedFileName === prompt.fileName ? "is-selected" : ""}`}
+                    key={prompt.fileName}
+                  >
+                    <button
+                      className="prompt-item-main"
+                      onClick={() => {
+                        if (!confirmDiscardChanges()) return;
+                        setSelectedFileName(prompt.fileName);
+                        setTitle(prompt.title);
+                        setContent(prompt.content);
+                        setError("");
+                        setNotice("");
+                      }}
+                    >
+                      <span className="prompt-item-title">{prompt.title}</span>
+                      <span className="prompt-item-preview">
+                        {prompt.content || "尚無內容"}
+                      </span>
+                    </button>
+                    <button
+                      className="use-button"
+                      onClick={() => void usePrompt(prompt)}
+                      title="取用並複製"
+                    >
+                      取用
+                    </button>
+                  </article>
+                ))
               )}
-              <button
-                className="button button-primary save-button"
-                disabled={saving || loading || !folderPath}
-                type="submit"
-              >
-                {saving ? "儲存中…" : "儲存 Prompt"}
-              </button>
             </div>
-          </form>
-        </section>
-      </div>
+          </section>
 
-      {variablePrompt && (
-        <div className="dialog-backdrop">
-          <section
-            aria-labelledby="variable-dialog-title"
-            aria-modal="true"
-            className="variable-dialog"
-            role="dialog"
-          >
-            <div className="dialog-heading">
-              <span className="eyebrow">填寫變數</span>
-              <h2 id="variable-dialog-title">{variablePrompt.title}</h2>
-              <p>填入 Prompt 中的欄位，完成後會複製至剪貼簿。</p>
-            </div>
-            {error && (
-              <div className="message message-error" role="alert">
-                {error}
+          <section className="editor-panel">
+            <div className="editor-heading">
+              <div>
+                <span className="eyebrow">{selectedFileName ? "提示詞" : "新項目"}</span>
+                <h3>{selectedFileName ? title || "未命名提示詞" : "建立提示詞"}</h3>
               </div>
-            )}
-            <form className="variable-form" onSubmit={copyFilledPrompt}>
-              {promptVariables(variablePrompt.content).map((variable, index) => (
-                <label className="field" key={variable}>
-                  <span>{variable}</span>
-                  <input
-                    autoFocus={index === 0}
-                    value={variableValues[variable] ?? ""}
-                    onChange={(event) => {
-                      const value = event.currentTarget.value;
-                      setVariableValues((current) => ({
-                        ...current,
-                        [variable]: value,
-                      }));
-                    }}
-                    placeholder={`輸入${variable}`}
-                  />
-                </label>
-              ))}
-              <div className="dialog-actions">
+              <span className="format-label">Markdown</span>
+            </div>
+            {error && <div className="message message-error" role="alert">{error}</div>}
+            {notice && <div className="message message-success" role="status">{notice}</div>}
+            <form className="prompt-form" onSubmit={savePrompt}>
+              <label className="field">
+                <span>標題</span>
+                <input
+                  maxLength={120}
+                  placeholder="為這筆提示詞命名"
+                  required
+                  value={title}
+                  onChange={(event) => setTitle(event.currentTarget.value)}
+                />
+              </label>
+              <label className="field content-field">
+                <span className="field-label-row">
+                  內容 <span>支援 Markdown 與 {"{變數}"}</span>
+                </span>
+                <textarea
+                  placeholder={"撰寫可重複使用的提示詞…\n\n以 {變數名稱} 加入可填寫欄位。"}
+                  value={content}
+                  onChange={(event) => setContent(event.currentTarget.value)}
+                />
+              </label>
+              <div className="file-hint">
+                {selectedFileName
+                  ? `儲存至 ${selectedFileName}`
+                  : "儲存後會建立本機 .md 檔案"}
+              </div>
+              <div className="form-actions">
+                {selectedFileName && (
+                  <button className="button button-danger" type="button" onClick={deletePrompt}>
+                    刪除
+                  </button>
+                )}
                 <button
-                  className="button button-secondary"
-                  type="button"
-                  onClick={() => setVariablePrompt(null)}
+                  className="button button-primary"
+                  disabled={saving || loading || !folderPath}
+                  type="submit"
                 >
-                  取消
-                </button>
-                <button className="button button-primary" type="submit">
-                  填寫並複製
+                  {saving ? "儲存中…" : "儲存"}
                 </button>
               </div>
             </form>
           </section>
         </div>
+      </section>
+
+      {variablePrompt && (
+        <VariableDialog
+          prompt={variablePrompt}
+          values={variableValues}
+          error={error}
+          setValues={setVariableValues}
+          onCancel={() => setVariablePrompt(null)}
+          onSubmit={copyFilledPrompt}
+        />
+      )}
+
+      {showImporter && (
+        <div className="dialog-backdrop">
+          <section className="modal import-modal" role="dialog" aria-modal="true">
+            <div className="dialog-heading">
+              <span className="eyebrow">資料管理</span>
+              <h2>批次匯入</h2>
+              <p>支援 Markdown 檔、ZIP 壓縮檔或 JSON 文字。</p>
+            </div>
+            {error && <div className="message message-error" role="alert">{error}</div>}
+            <div className="import-sources">
+              <button className="import-source" onClick={() => void readSelectedFiles(false)}>
+                <strong>Markdown 檔案</strong>
+                <span>一次選取多個 .md</span>
+              </button>
+              <button className="import-source" onClick={() => void readSelectedFiles(true)}>
+                <strong>ZIP 壓縮檔</strong>
+                <span>遞迴讀取其中的 .md 檔案</span>
+              </button>
+            </div>
+            <label className="field json-field">
+              <span>JSON 文字格式</span>
+              <textarea
+                value={jsonText}
+                onChange={(event) => setJsonText(event.currentTarget.value)}
+                placeholder={'[\n  {\n    "title": "程式碼審查",\n    "content": "請檢查 {檔案} 的程式碼。"\n  }\n]'}
+              />
+            </label>
+            <p className="import-note">
+              每筆需包含字串 <code>title</code> 與 <code>content</code>。同名時可逐筆覆寫或略過。
+            </p>
+            <div className="dialog-actions">
+              <button className="button button-secondary" onClick={() => setShowImporter(false)}>
+                關閉
+              </button>
+              <button
+                className="button button-primary"
+                disabled={!jsonText.trim()}
+                onClick={() => void importJsonText()}
+              >
+                匯入 JSON
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
+
+      {importStep && (
+        <div className="dialog-backdrop">
+          <section className="modal import-step" role="dialog" aria-modal="true">
+            <span className="eyebrow">
+              匯入進度 {importIndex + 1} / {importQueue.length}
+            </span>
+            <h2>{importConflict ? "發現同名提示詞" : "匯入提示詞"}</h2>
+            <p className="import-preview-title">{importStep.title}</p>
+            <p className="import-preview-content">{importStep.content || "（內容為空）"}</p>
+            {importConflict && (
+              <p className="conflict-note">
+                已有「{importConflict.title}」。你可以覆寫既有內容，或略過此筆。
+              </p>
+            )}
+            <div className="dialog-actions">
+              {importConflict ? (
+                <button
+                  className="button button-secondary"
+                  disabled={checkingImportConflict || processingImport}
+                  onClick={() => void decideImport(false)}
+                >
+                  略過
+                </button>
+              ) : (
+                <button
+                  className="button button-secondary"
+                  disabled={checkingImportConflict || processingImport}
+                  onClick={() => {
+                    setImportQueue([]);
+                    setImportConflict(null);
+                  }}
+                >
+                  取消整批
+                </button>
+              )}
+              <button
+                className="button button-primary"
+                disabled={checkingImportConflict || processingImport}
+                onClick={() => void decideImport(Boolean(importConflict))}
+              >
+                {importConflict ? "覆寫" : "匯入"}
+              </button>
+            </div>
+            <button
+              className="text-button cancel-import"
+              disabled={processingImport}
+              onClick={() => {
+                setImportQueue([]);
+                setImportConflict(null);
+                setNotice(`匯入已停止。已處理 ${importedCount} 筆。`);
+                void refreshPrompts().catch((cause) =>
+                  setError(`無法重新載入 Prompt 清單：${String(cause)}`),
+                );
+              }}
+            >
+              停止剩餘匯入
+            </button>
+          </section>
+        </div>
+      )}
+
+      {showSettings && (
+        <div className="dialog-backdrop">
+          <section className="modal settings-modal" role="dialog" aria-modal="true">
+            <div className="dialog-heading">
+              <span className="eyebrow">偏好設定</span>
+              <h2>取用快捷鍵</h2>
+              <p>按下快捷鍵即可切換精簡取用視窗的顯示狀態。</p>
+            </div>
+            {error && <div className="message message-error" role="alert">{error}</div>}
+            <div className="shortcut-editor">
+              <kbd>{shortcutDraft || shortcut}</kbd>
+              <button
+                className="button button-secondary"
+                onClick={() => {
+                  setShortcutDraft("");
+                  setRecordingShortcut(true);
+                }}
+              >
+                {recordingShortcut ? "請按下組合鍵…" : "錄製快捷鍵"}
+              </button>
+            </div>
+            <p className="import-note">預設為 Ctrl+Shift+Space。快捷鍵若被其他程式使用，請改用其他組合。</p>
+            <div className="dialog-actions">
+              <button
+                className="button button-secondary"
+                onClick={() => {
+                  setShowSettings(false);
+                  setRecordingShortcut(false);
+                  setError("");
+                }}
+              >
+                關閉
+              </button>
+              <button
+                className="button button-primary"
+                disabled={!shortcutDraft || recordingShortcut || savingShortcut}
+                onClick={() => void saveShortcut()}
+              >
+                {savingShortcut ? "儲存中…" : "儲存快捷鍵"}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
+
+      {showWelcome && (
+        <div className="dialog-backdrop welcome-backdrop">
+          <section
+            className="modal welcome-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="welcome-title"
+          >
+            <BrandMark className="welcome-mark" />
+            <span className="eyebrow">WELCOME TO PROMPT CLIP</span>
+            <h2 id="welcome-title">讓常用提示詞，隨手可得</h2>
+            <p>在本機整理、搜尋並重複使用你的 AI 提示詞，內容只儲存在自己的資料夾。</p>
+            <ol className="welcome-steps">
+              <li>
+                <strong>建立提示詞</strong>
+                <span>新增內容，支援 Markdown 與可填寫變數。</span>
+              </li>
+              <li>
+                <strong>快速取用</strong>
+                <span>按「取用」複製，或開啟精簡取用視窗。</span>
+              </li>
+              <li>
+                <strong>自訂工作區</strong>
+                <span>側邊欄可收合，也能切換深色模式。</span>
+              </li>
+            </ol>
+            <p className="welcome-shortcut">快捷鍵提示會在滑鼠移到「開啟取用視窗」按鈕時顯示。</p>
+            <div className="dialog-actions">
+              <button className="button button-primary" onClick={dismissWelcome}>開始使用</button>
+            </div>
+          </section>
+        </div>
       )}
     </main>
+  );
+}
+
+function VariableDialog({
+  prompt,
+  values,
+  error,
+  setValues,
+  onCancel,
+  onSubmit,
+}: {
+  prompt: PromptFile;
+  values: Record<string, string>;
+  error: string;
+  setValues: React.Dispatch<React.SetStateAction<Record<string, string>>>;
+  onCancel: () => void;
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+}) {
+  return (
+    <div className="dialog-backdrop">
+      <section
+        aria-labelledby="variable-dialog-title"
+        aria-modal="true"
+        className="modal variable-dialog"
+        role="dialog"
+      >
+        <div className="dialog-heading">
+          <span className="eyebrow">填寫變數</span>
+          <h2 id="variable-dialog-title">{prompt.title}</h2>
+          <p>填入欄位後，完成內容會複製至剪貼簿。</p>
+        </div>
+        {error && <div className="message message-error" role="alert">{error}</div>}
+        <form className="variable-form" onSubmit={onSubmit}>
+          {promptVariables(prompt.content).map((variable, index) => (
+            <label className="field" key={variable}>
+              <span>{variable}</span>
+              <input
+                autoFocus={index === 0}
+                value={values[variable] ?? ""}
+                onChange={(event) => {
+                  const value = event.currentTarget.value;
+                  setValues((current) => ({ ...current, [variable]: value }));
+                }}
+                placeholder={`輸入${variable}`}
+              />
+            </label>
+          ))}
+          <div className="dialog-actions">
+            <button className="button button-secondary" type="button" onClick={onCancel}>
+              取消
+            </button>
+            <button className="button button-primary" type="submit">
+              填寫並複製
+            </button>
+          </div>
+        </form>
+      </section>
+    </div>
   );
 }
 
