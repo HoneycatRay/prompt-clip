@@ -24,3 +24,4 @@ target/
 *.sln
 *.sw?
 prompt_clip_prompt.md
+PromptClipPortable/

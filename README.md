@@ -6,7 +6,7 @@ Prompt Clip is a cross-platform desktop app for keeping and quickly copying reus
 
 Install Node.js and the Rust toolchain. On Windows, also install the Microsoft C++ Build Tools and WebView2 Runtime.
 
-Prompt Markdown files are stored in the app's local `Prompts` data folder by default. Use **選擇資料夾** in the app to use another existing folder; the selected folder is remembered on this device.
+Prompt Markdown files are stored in the app's local `Prompts` data folder by default. Use **選擇其他資料夾** in the app to use another existing folder; the selected folder is remembered on this device.
 
 The `npm run tauri` command automatically adds Rust's standard `~/.cargo/bin` directory to its `PATH`. On Windows it also uses a build output directory without spaces by default, which is useful when the project path contains spaces. If Rust is installed in a non-standard location, add its `bin` directory to `PATH` before starting the app.
 
@@ -17,11 +17,30 @@ npm install
 npm run tauri dev
 ```
 
-Use **新增** to create a Prompt, choose **編輯** to update it, and choose **刪除** to remove it and its `.md` file. The app lists Markdown files in the selected folder and saves Prompts with YAML frontmatter and Markdown content.
+Use **新增提示詞** to create an item, select one from the library to edit it, and choose **刪除** to remove it and its `.md` file. The app lists Markdown files in the selected folder and saves Prompts with YAML frontmatter and Markdown content.
 
-Press **Ctrl+Shift+P** on Windows/Linux or **Command+Shift+P** on macOS to show or hide Prompt Clip. Closing the window hides it to the system tray; click the tray icon to toggle the window, right-click for the menu, or choose **離開** to quit.
+Press **Ctrl+Shift+Space** to show or hide the compact Prompt-use window. Change the shortcut under **設定** in the main app. The compact window only searches and copies Prompts; use **回到主 App** to manage them. Closing either window hides it; click the tray icon to open the main app, right-click for the menu, or choose **離開** to quit.
 
-Click a Prompt card to use it. Prompts containing `{variable}` placeholders open a fill-in dialog; submitting copies the completed text to the system clipboard and hides the window. Use **編輯** on a card to edit it without copying.
+The sidebar can be collapsed and expanded, and the sidebar theme control switches between light and dark mode. On first launch, Prompt Clip shows a short getting-started guide. The compact-window shortcut is revealed inside its button when you hover over or focus **開啟取用視窗**.
+
+The main app can import multiple `.md` files, `.zip` archives (including Markdown files in nested folders), or JSON text. The JSON format is an array of Prompt records, or an object containing a `prompts` array:
+
+```json
+[
+  {
+    "title": "程式碼審查",
+    "content": "請檢查 {檔案} 的程式碼，並列出具體改善建議。"
+  },
+  {
+    "title": "會議摘要",
+    "content": "請將以下逐字稿整理為重點與待辦事項：\n\n{逐字稿}"
+  }
+]
+```
+
+On a name conflict, choose **覆寫** or **略過** for each Prompt. Imports are limited to 500 Prompts and 10 MB of combined Markdown content per batch.
+
+Click **取用** beside a Prompt (or click it in the compact window) to copy it. Prompts containing `{variable}` placeholders open a fill-in dialog; submitting copies the completed text to the system clipboard and hides that window. Select an item in the main list to edit it.
 
 Run the frontend production build and Rust filesystem tests with:
 
@@ -37,4 +56,10 @@ npm install
 npm run tauri dev
 ```
 
-Create a production desktop build with `npm run tauri build` (use the same Cargo environment variables above on Windows when the project path contains spaces).
+Create a Windows portable folder with the root launcher by running:
+
+```powershell
+.\scripts\package-portable.ps1
+```
+
+The script builds the app into `PromptClipPortable`; double-click `啟動 Prompt Clip.bat` in the project folder to open that build. To share the portable version, share the complete `PromptClipPortable` folder, which includes its own `啟動 Prompt Clip.bat`. The target PC needs the Microsoft Edge WebView2 Runtime. The native app, tray, and installer icons are generated from `public/prompt-clip-mark.svg`. A regular installer can be built with `npm run tauri -- build`.
