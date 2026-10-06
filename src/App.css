@@ -79,10 +79,14 @@
   box-sizing: border-box;
 }
 
+html,
 body {
   min-width: 360px;
-  min-height: 100vh;
+  width: 100%;
+  height: 100%;
   margin: 0;
+  overflow: hidden;
+  overscroll-behavior: none;
 }
 
 button,
@@ -104,13 +108,17 @@ textarea:focus-visible {
 
 #root,
 .app-shell {
-  min-height: 100vh;
+  width: 100%;
+  height: 100%;
 }
 
 .app-shell {
   display: flex;
+  min-height: 0;
+  overflow: hidden;
   color: var(--ink);
   background: var(--canvas);
+  overscroll-behavior: none;
 }
 
 .sidebar {
@@ -168,7 +176,6 @@ textarea:focus-visible {
 
 .brand h1,
 .brand p,
-.page-header h2,
 .editor-heading h3,
 .dialog-heading h2,
 .quick-header h1 {
@@ -250,70 +257,19 @@ textarea:focus-visible {
   border-top: 1px solid var(--sidebar-line);
 }
 
-.folder-path {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  padding: 4px 10px;
-  color: var(--text-secondary);
-  font-size: 12px;
-  line-height: 1.55;
-}
-
-.folder-path > span:last-child {
-  overflow-wrap: anywhere;
-}
-
-.folder-change {
-  margin: 7px 0 0 9px;
-}
-
 .main-panel {
   min-width: 0;
+  min-height: 0;
   flex: 1;
   display: flex;
   flex-direction: column;
-}
-
-.page-header {
-  min-height: 115px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 24px;
-  padding: 22px 34px;
-  background: var(--paper);
-  border-bottom: 1px solid var(--line);
+  overflow: hidden;
 }
 
 .eyebrow {
   display: block;
   margin-bottom: 6px;
   text-transform: uppercase;
-}
-
-.page-header h2 {
-  font-family: Georgia, "Noto Serif TC", serif;
-  font-size: 28px;
-  font-weight: 500;
-  letter-spacing: -0.03em;
-}
-
-.page-header p {
-  margin: 6px 0 0;
-  color: var(--muted);
-  font-size: 13px;
-}
-
-.page-title {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-}
-
-.page-title-mark {
-  width: 30px;
-  height: 30px;
 }
 
 .header-actions {
@@ -340,6 +296,7 @@ kbd {
   flex: 1;
   display: grid;
   grid-template-columns: minmax(245px, 31%) minmax(0, 1fr);
+  overflow: hidden;
 }
 
 .library-panel {
@@ -349,6 +306,49 @@ kbd {
   padding: 20px 15px;
   background: var(--canvas);
   border-right: 1px solid var(--line);
+  overflow: hidden;
+}
+
+.library-toolbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 3px;
+}
+
+.library-toolbar h1 {
+  flex: 1 0 100%;
+  margin: 0;
+  white-space: nowrap;
+  font-family: Georgia, "Noto Serif TC", serif;
+  font-size: 24px;
+  font-weight: 500;
+  letter-spacing: -0.03em;
+}
+
+.library-actions {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.library-actions .compact-action {
+  min-height: 32px;
+  padding: 0 8px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.library-subtitle {
+  margin: 0 0 16px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .search-box {
@@ -404,6 +404,8 @@ kbd {
   min-height: 0;
   flex: 1;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
 }
 
 .list-message {
@@ -418,7 +420,8 @@ kbd {
 .prompt-item {
   display: flex;
   align-items: center;
-  gap: 3px;
+  min-width: 0;
+  gap: 6px;
   margin: 2px 0;
   padding: 2px;
   border: 1px solid transparent;
@@ -435,8 +438,9 @@ kbd {
 }
 
 .prompt-item-main {
+  width: 0;
   min-width: 0;
-  flex: 1;
+  flex: 1 1 0;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -479,10 +483,13 @@ kbd {
 }
 
 .use-button {
-  margin-right: 5px;
-  padding: 5px 7px;
+  flex: 0 0 auto;
+  min-width: 44px;
+  margin-right: 2px;
+  padding: 6px 8px;
   border-radius: 4px;
   font-size: 12px;
+  white-space: nowrap;
 }
 
 .use-button:hover,
@@ -504,6 +511,7 @@ kbd {
 
 .editor-panel {
   min-width: 0;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   padding: 28px clamp(24px, 4vw, 52px);
@@ -655,6 +663,7 @@ kbd {
   min-height: 250px;
   flex: 1;
   resize: vertical;
+  overscroll-behavior: contain;
   font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
   line-height: 1.65;
 }
@@ -708,6 +717,7 @@ kbd {
   place-items: center;
   padding: 20px;
   background: rgba(16, 15, 13, 0.42);
+  overscroll-behavior: contain;
 }
 
 .modal {
@@ -719,6 +729,7 @@ kbd {
   border: 1px solid var(--line);
   border-radius: 9px;
   box-shadow: 0 16px 50px var(--modal-shadow);
+  overscroll-behavior: contain;
 }
 
 .dialog-heading {
@@ -851,44 +862,194 @@ kbd {
 }
 
 .shortcut-action {
-  position: relative;
-  min-width: 176px;
-}
-
-.shortcut-action-label,
-.shortcut-action kbd {
-  grid-area: 1 / 1;
-  transition: opacity 120ms ease;
-}
-
-.shortcut-action {
-  display: inline-grid;
-  grid-template: 1fr / 1fr;
+  flex: 0 0 auto;
+  gap: 0;
+  white-space: nowrap;
 }
 
 .shortcut-action kbd {
-  justify-self: center;
+  max-width: 0;
+  overflow: hidden;
+  padding-right: 0;
+  padding-left: 0;
+  border-width: 0;
   opacity: 0;
-  pointer-events: none;
+  transition: max-width 160ms ease, margin 160ms ease, padding 160ms ease, opacity 120ms ease;
 }
 
-.shortcut-action:hover .shortcut-action-label,
-.shortcut-action:focus-visible .shortcut-action-label {
-  opacity: 0;
+.shortcut-action-label {
+  flex: 0 0 auto;
 }
 
 .shortcut-action:hover kbd,
 .shortcut-action:focus-visible kbd {
+  max-width: 160px;
+  margin-left: 8px;
+  padding: 4px 7px;
+  border-width: 1px;
   opacity: 1;
 }
 
+.settings-modal {
+  width: min(100%, 720px);
+  min-height: 390px;
+  display: grid;
+  grid-template-columns: 180px minmax(0, 1fr);
+  overflow: hidden;
+  padding: 0;
+}
+
+.settings-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 24px 14px;
+  background: var(--surface-soft);
+  border-right: 1px solid var(--line);
+}
+
+.settings-nav > .eyebrow {
+  margin: 0 8px 12px;
+}
+
+.settings-nav button {
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 0 10px;
+  color: var(--text-secondary);
+  background: transparent;
+  border: 0;
+  border-radius: 5px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+}
+
+.settings-nav button:hover,
+.settings-nav button.is-active {
+  color: var(--ink);
+  background: var(--surface-selected);
+}
+
+.settings-nav button.is-active {
+  font-weight: 600;
+}
+
+.settings-content {
+  min-width: 0;
+  max-height: min(88vh, 760px);
+  overflow: auto;
+  padding: 28px;
+  overscroll-behavior: contain;
+}
+
+.settings-content .dialog-heading {
+  margin-bottom: 24px;
+}
+
+.setting-row {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.setting-row > span {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.setting-row strong {
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.setting-row small {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.setting-row select {
+  min-height: 36px;
+  padding: 0 30px 0 10px;
+  color: var(--ink);
+  background: var(--control);
+  border: 1px solid var(--control-border);
+  border-radius: 5px;
+  font: inherit;
+  font-size: 12px;
+}
+
+.folder-setting {
+  align-items: flex-start;
+}
+
+.folder-location {
+  max-width: 380px;
+  overflow-wrap: anywhere;
+}
+
+.import-help-backdrop {
+  z-index: 12;
+}
+
+.import-help-modal {
+  width: min(100%, 560px);
+}
+
+.import-format-list {
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.import-format-list pre {
+  max-height: 240px;
+  overflow: auto;
+  padding: 14px;
+  color: var(--ink);
+  background: var(--code-surface);
+  border: 1px solid var(--control-border);
+  border-radius: 6px;
+  font-family: "Cascadia Code", Consolas, monospace;
+  font-size: 12px;
+  overscroll-behavior: contain;
+}
+
+.import-format-list code {
+  padding: 1px 4px;
+  background: var(--surface-soft);
+  border-radius: 3px;
+}
+
+.import-help-link {
+  margin-top: 8px;
+  color: var(--accent-dark);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 .quick-shell {
-  min-height: 100vh;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   padding: 20px 18px 12px;
+  overflow: hidden;
   color: var(--ink);
   background: var(--paper);
+  overscroll-behavior: none;
 }
 
 .quick-header {
@@ -1005,9 +1166,7 @@ kbd {
 }
 
 .sidebar-collapsed .brand > div:last-child,
-.sidebar-collapsed .nav-section-label,
-.sidebar-collapsed .folder-path > span:last-child,
-.sidebar-collapsed .folder-change {
+.sidebar-collapsed .nav-section-label {
   display: none;
 }
 
@@ -1035,22 +1194,6 @@ kbd {
   flex-direction: column;
   justify-content: center;
   padding-top: 12px;
-}
-
-.sidebar-collapsed .theme-toggle {
-  width: 40px;
-  justify-content: center;
-  margin-top: 5px;
-  padding: 0;
-  font-size: 0;
-}
-
-.sidebar-collapsed .theme-toggle > span:first-child {
-  font-size: 17px;
-}
-
-.sidebar-collapsed .sidebar-bottom .folder-path {
-  padding: 4px;
 }
 
 .welcome-modal {
@@ -1128,15 +1271,6 @@ kbd {
     width: 220px;
     flex-basis: 220px;
   }
-
-  .page-header {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
-  .header-actions {
-    justify-content: flex-start;
-  }
 }
 
 @media (max-width: 700px) {
@@ -1146,87 +1280,112 @@ kbd {
     padding: 16px 12px;
   }
 
-  .sidebar:not(.is-expanded) .sidebar-head {
+  .sidebar .sidebar-head {
     align-items: center;
     flex-direction: column;
     gap: 8px;
   }
 
-  .sidebar:not(.is-expanded) .brand {
+  .sidebar .brand {
     justify-content: center;
     padding-right: 0;
     padding-left: 0;
   }
 
-  .sidebar:not(.is-expanded) .brand > div:last-child,
-  .sidebar:not(.is-expanded) .nav-section-label,
-  .sidebar:not(.is-expanded) .folder-path > span:last-child,
-  .sidebar:not(.is-expanded) .folder-change,
-  .sidebar:not(.is-expanded) .nav-count {
+  .sidebar .brand > div:last-child,
+  .sidebar .nav-section-label,
+  .sidebar .nav-count {
     display: none;
   }
 
-  .sidebar:not(.is-expanded) .nav-item {
+  .sidebar .nav-item {
     justify-content: center;
     padding: 0;
     font-size: 0;
   }
 
-  .sidebar:not(.is-expanded) .nav-item > span:first-child {
+  .sidebar .nav-item > span:first-child {
     font-size: 14px;
   }
 
-  .sidebar:not(.is-expanded) .sidebar-bottom {
+  .sidebar .sidebar-bottom {
     display: flex;
     align-items: center;
-    flex-direction: column;
     justify-content: center;
   }
 
-  .sidebar:not(.is-expanded) .theme-toggle {
-    width: 40px;
-    justify-content: center;
-    margin-top: 5px;
-    padding: 0;
-    font-size: 0;
-  }
-
-  .sidebar:not(.is-expanded) .theme-toggle > span:first-child {
-    font-size: 16px;
-  }
-
-  .sidebar:not(.is-expanded) .folder-path {
-    padding: 4px;
-  }
-
-  .sidebar:not(.is-expanded) .sidebar-toggle {
+  .sidebar .sidebar-toggle {
     display: grid;
-  }
-
-  .app-shell:not(.sidebar-collapsed) .sidebar {
-    width: 190px;
-    flex-basis: 190px;
-  }
-
-  .sidebar-collapsed .sidebar {
-    width: 76px;
-    flex-basis: 76px;
   }
 
   .workspace {
     grid-template-columns: minmax(165px, 38%) minmax(0, 1fr);
   }
 
-  .page-header {
-    padding: 17px;
-  }
-
   .editor-panel {
-    padding: 22px 17px;
+    padding: 18px 12px;
   }
 
-  .header-actions {
-    gap: 5px;
+  .library-panel {
+    padding-right: 10px;
+    padding-left: 10px;
   }
 
+  .library-toolbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .library-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .settings-modal {
+    grid-template-columns: 145px minmax(0, 1fr);
+  }
+
+  .settings-content {
+    padding: 20px;
+  }
+}
+
+@media (max-width: 520px) {
+  .settings-modal {
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .settings-nav {
+    flex-direction: row;
+    overflow-x: auto;
+    padding: 12px;
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .settings-nav > .eyebrow {
+    display: none;
+  }
+
+  .settings-nav button {
+    flex: 0 0 auto;
+    padding: 0 8px;
+  }
+
+  .settings-content {
+    max-height: 65vh;
+    padding: 18px;
+  }
+
+  .setting-row,
+  .folder-setting {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .folder-setting .button {
+    align-self: flex-start;
+  }
 }

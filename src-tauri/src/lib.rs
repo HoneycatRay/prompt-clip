@@ -646,8 +646,13 @@ pub fn run() {
             let menu = Menu::with_items(app, &[&show_item, &separator, &quit_item])?;
             let icon = tauri::image::Image::from_bytes(include_bytes!("../icons/icon.png"))?;
 
+            let main_window = app
+                .get_webview_window("main")
+                .ok_or_else(|| std::io::Error::other("Main window is unavailable."))?;
+            main_window.set_icon(icon.clone())?;
+
             TrayIconBuilder::new()
-                .icon(icon)
+                .icon(icon.clone())
                 .tooltip("Prompt Clip")
                 .menu(&menu)
                 .show_menu_on_left_click(false)
@@ -678,6 +683,7 @@ pub fn run() {
                 WebviewUrl::App("index.html?window=quick".into()),
             )
             .title("Prompt Clip · 取用")
+            .icon(icon)?
             .inner_size(420.0, 600.0)
             .min_inner_size(360.0, 420.0)
             .resizable(true)
