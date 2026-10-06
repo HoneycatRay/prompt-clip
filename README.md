@@ -21,9 +21,9 @@ Use **新增提示詞** to create an item, select one from the library to edit i
 
 Press **Ctrl+Shift+Space** to show or hide the compact Prompt-use window. Change the shortcut under **設定** in the main app. The compact window only searches and copies Prompts; use **回到主 App** to manage them. Closing either window hides it; click the tray icon to open the main app, right-click for the menu, or choose **離開** to quit.
 
-The sidebar can be collapsed and expanded, and the sidebar theme control switches between light and dark mode. On first launch, Prompt Clip shows a short getting-started guide. The compact-window shortcut is revealed inside its button when you hover over or focus **開啟取用視窗**.
+The sidebar can be collapsed and expanded. Open **設定** to choose a light, dark, or system-matched theme, manage the Prompt folder, and change the global shortcut. **查看提示** reopens the getting-started guide, which also explains batch imports. The compact-window shortcut appears beside its label when you hover over or focus its button.
 
-The main app can import multiple `.md` files, `.zip` archives (including Markdown files in nested folders), or JSON text. The JSON format is an array of Prompt records, or an object containing a `prompts` array:
+The main app can import multiple `.md` files, `.zip` archives (including Markdown files in nested folders), or JSON text. Select **查看匯入格式與範例** in the import dialog for details. The JSON format is an array of Prompt records, or an object containing a `prompts` array:
 
 ```json
 [

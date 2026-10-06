@@ -23,7 +23,18 @@ const themeStorageKey = "prompt-clip.theme";
 const sidebarStorageKey = "prompt-clip.sidebar-collapsed";
 const onboardingStorageKey = "prompt-clip.onboarding-complete";
 const quickWindow = getCurrentWindow().label === "quick";
-type Theme = "light" | "dark";
+type ThemePreference = "system" | "light" | "dark";
+type Theme = Exclude<ThemePreference, "system">;
+type SettingsCategory = "appearance" | "data" | "shortcuts";
+
+function isThemePreference(value: string): value is ThemePreference {
+  return value === "system" || value === "light" || value === "dark";
+}
+
+function readThemePreference(): ThemePreference {
+  const stored = localStorage.getItem(themeStorageKey);
+  return stored && isThemePreference(stored) ? stored : "system";
+}
 
 function BrandMark({ className = "" }: { className?: string }) {
   return <img className={className} src="/prompt-clip-mark.svg" alt="" aria-hidden="true" />;
@@ -66,9 +77,20 @@ function App() {
   const [recordingShortcut, setRecordingShortcut] = useState(false);
   const [savingShortcut, setSavingShortcut] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [theme, setTheme] = useState<Theme>(
-    () => (localStorage.getItem(themeStorageKey) === "dark" ? "dark" : "light"),
+  const [settingsCategory, setSettingsCategory] =
+    useState<SettingsCategory>("appearance");
+  const [showImportHelp, setShowImportHelp] = useState(false);
+  const [themePreference, setThemePreference] =
+    useState<ThemePreference>(readThemePreference);
+  const [systemPrefersDark, setSystemPrefersDark] = useState(
+    () => window.matchMedia("(prefers-color-scheme: dark)").matches,
   );
+  const theme: Theme =
+    themePreference === "system"
+      ? systemPrefersDark
+        ? "dark"
+        : "light"
+      : themePreference;
   const [sidebarCollapsed, setSidebarCollapsed] = useState(
     () => localStorage.getItem(sidebarStorageKey) === "true",
   );
@@ -81,12 +103,20 @@ function App() {
   }, []);
 
   useEffect(() => {
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const updateSystemTheme = () => setSystemPrefersDark(media.matches);
+    updateSystemTheme();
+    media.addEventListener("change", updateSystemTheme);
+    return () => media.removeEventListener("change", updateSystemTheme);
+  }, []);
+
+  useEffect(() => {
     if (!quickWindow) return;
     let active = true;
     let unlisten: (() => void) | undefined;
-    void listen<Theme>("prompt-clip-theme-changed", (event) => {
-      if (event.payload === "light" || event.payload === "dark") {
-        setTheme(event.payload);
+    void listen<ThemePreference>("prompt-clip-theme-changed", (event) => {
+      if (isThemePreference(event.payload)) {
+        setThemePreference(event.payload);
       }
     }).then((dispose) => {
       if (active) unlisten = dispose;
@@ -98,11 +128,10 @@ function App() {
     };
   }, []);
 
-  function toggleTheme() {
-    const nextTheme = theme === "light" ? "dark" : "light";
-    setTheme(nextTheme);
-    localStorage.setItem(themeStorageKey, nextTheme);
-    void emit("prompt-clip-theme-changed", nextTheme).catch((cause) => {
+  function changeThemePreference(preference: ThemePreference) {
+    setThemePreference(preference);
+    localStorage.setItem(themeStorageKey, preference);
+    void emit("prompt-clip-theme-changed", preference).catch((cause) => {
       setError(`無法同步深色模式：${String(cause)}`);
     });
   }
@@ -556,6 +585,23 @@ function App() {
     }
   }
 
+  function cancelImportBatch() {
+    if (processingImport) return;
+    setImportQueue([]);
+    setImportConflict(null);
+    setNotice(`匯入已停止。已處理 ${importedCount} 筆。`);
+    void refreshPrompts().catch((cause) =>
+      setError(`無法重新載入 Prompt 清單：${String(cause)}`),
+    );
+  }
+
+  function closeSettings() {
+    setShowSettings(false);
+    setShowImportHelp(false);
+    setRecordingShortcut(false);
+    setError("");
+  }
+
   const importStep = importQueue[importIndex];
 
   if (quickWindow) {
@@ -658,7 +704,10 @@ function App() {
           </button>
           <button
             className="nav-item"
-            onClick={() => setShowSettings(true)}
+            onClick={() => {
+              setSettingsCategory("appearance");
+              setShowSettings(true);
+            }}
             title="設定"
             aria-label="設定"
           >
@@ -667,57 +716,52 @@ function App() {
         </nav>
 
         <div className="sidebar-bottom">
-          <span className="nav-section-label">資料夾</span>
-          <div className="folder-path" title={folderPath}>
-            <span aria-hidden="true">▰</span>
-            <span>{folderPath || "載入中…"}</span>
-          </div>
-          <button className="text-button folder-change" onClick={chooseFolder}>
-            選擇其他資料夾
-          </button>
           <button
-            className="nav-item theme-toggle"
-            onClick={toggleTheme}
-            title={theme === "light" ? "切換深色模式" : "切換淺色模式"}
-            aria-label={theme === "light" ? "切換深色模式" : "切換淺色模式"}
+            className="nav-item"
+            onClick={() => setShowWelcome(true)}
+            title="查看提示"
+            aria-label="查看提示"
           >
-            <span aria-hidden="true">{theme === "light" ? "☾" : "☀"}</span>
-            {theme === "light" ? "深色模式" : "淺色模式"}
+            <span aria-hidden="true">?</span> 查看提示
           </button>
         </div>
       </aside>
 
       <section className="main-panel">
-        <header className="page-header">
-          <div>
-            <span className="eyebrow">個人工作區</span>
-            <h2 className="page-title">
-              <BrandMark className="page-title-mark" />
-              提示詞
-            </h2>
-            <p>整理常用內容，需要時快速複製。</p>
-          </div>
-          <div className="header-actions">
-            <button
-              className="button button-secondary shortcut-action"
-              onClick={() => void openQuickWindow()}
-            >
-              <span className="shortcut-action-label">開啟取用視窗</span>
-              <kbd>{shortcut}</kbd>
-            </button>
-            <button className="button button-secondary" onClick={() => setShowImporter(true)}>
-              匯入
-            </button>
-            <button className="button button-primary" onClick={() => {
-              if (confirmDiscardChanges()) resetEditor();
-            }}>
-              新增提示詞
-            </button>
-          </div>
-        </header>
-
         <div className="workspace">
           <section className="library-panel">
+            <div className="library-toolbar">
+              <h1>提示詞</h1>
+              <div className="library-actions">
+                <button
+                  className="button button-secondary shortcut-action"
+                  onClick={() => void openQuickWindow()}
+                  title={`開啟取用視窗 (${shortcut})`}
+                >
+                  <span className="shortcut-action-label">取用視窗</span>
+                  <kbd>{shortcut}</kbd>
+                </button>
+                <button
+                  className="button button-secondary compact-action"
+                  onClick={() => setShowImporter(true)}
+                  title="批次匯入"
+                  aria-label="批次匯入"
+                >
+                  匯入
+                </button>
+                <button
+                  className="button button-primary compact-action"
+                  onClick={() => {
+                    if (confirmDiscardChanges()) resetEditor();
+                  }}
+                  title="新增提示詞"
+                  aria-label="新增提示詞"
+                >
+                  + 新增
+                </button>
+              </div>
+            </div>
+            <p className="library-subtitle">整理常用內容，需要時快速複製。</p>
             <label className="search-box">
               <span aria-hidden="true">⌕</span>
               <input
@@ -840,8 +884,13 @@ function App() {
       )}
 
       {showImporter && (
-        <div className="dialog-backdrop">
-          <section className="modal import-modal" role="dialog" aria-modal="true">
+        <div className="dialog-backdrop" onClick={() => setShowImporter(false)}>
+          <section
+            className="modal import-modal"
+            role="dialog"
+            aria-modal="true"
+            onClick={(event) => event.stopPropagation()}
+          >
             <div className="dialog-heading">
               <span className="eyebrow">資料管理</span>
               <h2>批次匯入</h2>
@@ -869,6 +918,12 @@ function App() {
             <p className="import-note">
               每筆需包含字串 <code>title</code> 與 <code>content</code>。同名時可逐筆覆寫或略過。
             </p>
+            <button
+              className="text-button import-help-link"
+              onClick={() => setShowImportHelp(true)}
+            >
+              查看匯入格式與範例
+            </button>
             <div className="dialog-actions">
               <button className="button button-secondary" onClick={() => setShowImporter(false)}>
                 關閉
@@ -886,8 +941,13 @@ function App() {
       )}
 
       {importStep && (
-        <div className="dialog-backdrop">
-          <section className="modal import-step" role="dialog" aria-modal="true">
+        <div className="dialog-backdrop" onClick={cancelImportBatch}>
+          <section
+            className="modal import-step"
+            role="dialog"
+            aria-modal="true"
+            onClick={(event) => event.stopPropagation()}
+          >
             <span className="eyebrow">
               匯入進度 {importIndex + 1} / {importQueue.length}
             </span>
@@ -913,8 +973,7 @@ function App() {
                   className="button button-secondary"
                   disabled={checkingImportConflict || processingImport}
                   onClick={() => {
-                    setImportQueue([]);
-                    setImportConflict(null);
+                    cancelImportBatch();
                   }}
                 >
                   取消整批
@@ -931,14 +990,7 @@ function App() {
             <button
               className="text-button cancel-import"
               disabled={processingImport}
-              onClick={() => {
-                setImportQueue([]);
-                setImportConflict(null);
-                setNotice(`匯入已停止。已處理 ${importedCount} 筆。`);
-                void refreshPrompts().catch((cause) =>
-                  setError(`無法重新載入 Prompt 清單：${String(cause)}`),
-                );
-              }}
+              onClick={cancelImportBatch}
             >
               停止剩餘匯入
             </button>
@@ -947,44 +999,170 @@ function App() {
       )}
 
       {showSettings && (
-        <div className="dialog-backdrop">
-          <section className="modal settings-modal" role="dialog" aria-modal="true">
+        <div className="dialog-backdrop" onClick={closeSettings}>
+          <section
+            className="modal settings-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="settings-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <aside className="settings-nav" aria-label="設定分類">
+              <span className="eyebrow">設定</span>
+              <button
+                className={settingsCategory === "appearance" ? "is-active" : ""}
+                onClick={() => setSettingsCategory("appearance")}
+              >
+                <span aria-hidden="true">◐</span> 外觀
+              </button>
+              <button
+                className={settingsCategory === "data" ? "is-active" : ""}
+                onClick={() => setSettingsCategory("data")}
+              >
+                <span aria-hidden="true">▰</span> 資料與儲存
+              </button>
+              <button
+                className={settingsCategory === "shortcuts" ? "is-active" : ""}
+                onClick={() => setSettingsCategory("shortcuts")}
+              >
+                <span aria-hidden="true">⌘</span> 快捷鍵
+              </button>
+            </aside>
+
+            <div className="settings-content">
+              {settingsCategory === "appearance" && (
+                <>
+                  <div className="dialog-heading">
+                    <span className="eyebrow">偏好設定</span>
+                    <h2 id="settings-title">外觀</h2>
+                    <p>選擇符合你工作環境的顯示方式。</p>
+                  </div>
+                  <label className="setting-row">
+                    <span>
+                      <strong>色彩主題</strong>
+                      <small>可固定淺色、深色，或跟隨系統設定。</small>
+                    </span>
+                    <select
+                      value={themePreference}
+                      onChange={(event) => {
+                        const preference = event.currentTarget.value;
+                        if (isThemePreference(preference)) {
+                          changeThemePreference(preference);
+                        }
+                      }}
+                    >
+                      <option value="system">與系統相同</option>
+                      <option value="light">淺色</option>
+                      <option value="dark">深色</option>
+                    </select>
+                  </label>
+                </>
+              )}
+
+              {settingsCategory === "data" && (
+                <>
+                  <div className="dialog-heading">
+                    <span className="eyebrow">偏好設定</span>
+                    <h2 id="settings-title">資料與儲存</h2>
+                    <p>管理提示詞所在的本機資料夾。</p>
+                  </div>
+                  <div className="setting-row folder-setting">
+                    <span>
+                      <strong>目前資料夾</strong>
+                      <small className="folder-location">{folderPath || "載入中…"}</small>
+                    </span>
+                    <button
+                      className="button button-secondary"
+                      onClick={() => void chooseFolder()}
+                    >
+                      選擇資料夾
+                    </button>
+                  </div>
+                  <p className="import-note">
+                    提示詞以 Markdown 檔案儲存在此資料夾。選擇新資料夾不會搬移原有檔案。
+                  </p>
+                </>
+              )}
+
+              {settingsCategory === "shortcuts" && (
+                <>
+                  <div className="dialog-heading">
+                    <span className="eyebrow">偏好設定</span>
+                    <h2 id="settings-title">取用快捷鍵</h2>
+                    <p>按下快捷鍵即可切換精簡取用視窗的顯示狀態。</p>
+                  </div>
+                  {error && <div className="message message-error" role="alert">{error}</div>}
+                  {notice && <div className="message message-success" role="status">{notice}</div>}
+                  <div className="shortcut-editor">
+                    <kbd>{shortcutDraft || shortcut}</kbd>
+                    <button
+                      className="button button-secondary"
+                      onClick={() => {
+                        setShortcutDraft("");
+                        setRecordingShortcut(true);
+                      }}
+                    >
+                      {recordingShortcut ? "請按下組合鍵…" : "錄製快捷鍵"}
+                    </button>
+                  </div>
+                  <p className="import-note">
+                    預設為 Ctrl+Shift+Space。快捷鍵若被其他程式使用，請改用其他組合。
+                  </p>
+                </>
+              )}
+
+              <div className="dialog-actions">
+                <button className="button button-secondary" onClick={closeSettings}>
+                  關閉
+                </button>
+                {settingsCategory === "shortcuts" && (
+                  <button
+                    className="button button-primary"
+                    disabled={!shortcutDraft || recordingShortcut || savingShortcut}
+                    onClick={() => void saveShortcut()}
+                  >
+                    {savingShortcut ? "儲存中…" : "儲存快捷鍵"}
+                  </button>
+                )}
+              </div>
+            </div>
+          </section>
+        </div>
+      )}
+
+      {showImportHelp && (
+        <div
+          className="dialog-backdrop import-help-backdrop"
+          onClick={() => setShowImportHelp(false)}
+        >
+          <section
+            className="modal import-help-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="import-help-title"
+            onClick={(event) => event.stopPropagation()}
+          >
             <div className="dialog-heading">
-              <span className="eyebrow">偏好設定</span>
-              <h2>取用快捷鍵</h2>
-              <p>按下快捷鍵即可切換精簡取用視窗的顯示狀態。</p>
+              <span className="eyebrow">批次匯入</span>
+              <h2 id="import-help-title">格式與範例</h2>
+              <p>
+                可一次選取多個 Markdown 檔案、匯入含有 .md 檔案的 ZIP，或貼上 JSON。
+                ZIP 內的子資料夾也會一併搜尋。
+              </p>
             </div>
-            {error && <div className="message message-error" role="alert">{error}</div>}
-            <div className="shortcut-editor">
-              <kbd>{shortcutDraft || shortcut}</kbd>
-              <button
-                className="button button-secondary"
-                onClick={() => {
-                  setShortcutDraft("");
-                  setRecordingShortcut(true);
-                }}
-              >
-                {recordingShortcut ? "請按下組合鍵…" : "錄製快捷鍵"}
-              </button>
+            <div className="import-format-list">
+              <p><strong>JSON 格式</strong>：最上層為提示詞陣列，或包含 <code>prompts</code> 陣列的物件。</p>
+              <pre>{`[
+  {
+    "title": "程式碼審查",
+    "content": "請檢查 {檔案} 的程式碼，並列出改善建議。"
+  }
+]`}</pre>
+              <p>每筆都必須有非空的 <code>title</code> 和字串 <code>content</code>。單次最多 500 筆、文字總量 10 MB；遇到同名項目可選擇覆寫或略過。</p>
             </div>
-            <p className="import-note">預設為 Ctrl+Shift+Space。快捷鍵若被其他程式使用，請改用其他組合。</p>
             <div className="dialog-actions">
-              <button
-                className="button button-secondary"
-                onClick={() => {
-                  setShowSettings(false);
-                  setRecordingShortcut(false);
-                  setError("");
-                }}
-              >
-                關閉
-              </button>
-              <button
-                className="button button-primary"
-                disabled={!shortcutDraft || recordingShortcut || savingShortcut}
-                onClick={() => void saveShortcut()}
-              >
-                {savingShortcut ? "儲存中…" : "儲存快捷鍵"}
+              <button className="button button-secondary" onClick={() => setShowImportHelp(false)}>
+                返回匯入
               </button>
             </div>
           </section>
@@ -992,12 +1170,13 @@ function App() {
       )}
 
       {showWelcome && (
-        <div className="dialog-backdrop welcome-backdrop">
+        <div className="dialog-backdrop welcome-backdrop" onClick={dismissWelcome}>
           <section
             className="modal welcome-modal"
             role="dialog"
             aria-modal="true"
             aria-labelledby="welcome-title"
+            onClick={(event) => event.stopPropagation()}
           >
             <BrandMark className="welcome-mark" />
             <span className="eyebrow">WELCOME TO PROMPT CLIP</span>
@@ -1014,10 +1193,16 @@ function App() {
               </li>
               <li>
                 <strong>自訂工作區</strong>
-                <span>側邊欄可收合，也能切換深色模式。</span>
+                <span>側邊欄可收合；外觀與資料夾可在「設定」調整。</span>
+              </li>
+              <li>
+                <strong>批次匯入</strong>
+                <span>可匯入多個 Markdown、含子資料夾的 ZIP，或 JSON；最多 500 筆、10 MB。</span>
               </li>
             </ol>
-            <p className="welcome-shortcut">快捷鍵提示會在滑鼠移到「開啟取用視窗」按鈕時顯示。</p>
+            <p className="welcome-shortcut">
+              快捷鍵提示會在滑鼠移到取用視窗按鈕時顯示；匯入視窗也有格式範例。
+            </p>
             <div className="dialog-actions">
               <button className="button button-primary" onClick={dismissWelcome}>開始使用</button>
             </div>
@@ -1044,12 +1229,13 @@ function VariableDialog({
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
 }) {
   return (
-    <div className="dialog-backdrop">
+    <div className="dialog-backdrop" onClick={onCancel}>
       <section
         aria-labelledby="variable-dialog-title"
         aria-modal="true"
         className="modal variable-dialog"
         role="dialog"
+        onClick={(event) => event.stopPropagation()}
       >
         <div className="dialog-heading">
           <span className="eyebrow">填寫變數</span>
