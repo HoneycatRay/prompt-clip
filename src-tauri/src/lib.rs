@@ -650,6 +650,7 @@ pub fn run() {
                 .get_webview_window("main")
                 .ok_or_else(|| std::io::Error::other("Main window is unavailable."))?;
             main_window.set_icon(icon.clone())?;
+            main_window.set_decorations(false)?;
 
             TrayIconBuilder::new()
                 .icon(icon.clone())

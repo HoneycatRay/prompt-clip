@@ -266,6 +266,42 @@ textarea:focus-visible {
   overflow: hidden;
 }
 
+.page-header {
+  min-height: 115px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 22px 34px;
+  background: var(--paper);
+  border-bottom: 1px solid var(--line);
+}
+
+.page-header h2 {
+  margin: 0;
+  font-family: Georgia, "Noto Serif TC", serif;
+  font-size: 28px;
+  font-weight: 500;
+  letter-spacing: -0.03em;
+}
+
+.page-header p {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.page-title {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.page-title-mark {
+  width: 30px;
+  height: 30px;
+}
+
 .eyebrow {
   display: block;
   margin-bottom: 6px;
@@ -278,6 +314,40 @@ textarea:focus-visible {
   justify-content: flex-end;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+.window-controls {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: 4px;
+  padding-left: 10px;
+  border-left: 1px solid var(--line);
+}
+
+.window-controls button {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  color: var(--text-secondary);
+  background: transparent;
+  border: 0;
+  border-radius: 5px;
+  cursor: pointer;
+  font-family: "Segoe UI Symbol", "Segoe UI", sans-serif;
+  font-size: 18px;
+}
+
+.window-controls button:hover {
+  color: var(--ink);
+  background: var(--surface-hover);
+}
+
+.window-controls button.window-close:hover {
+  color: #fff;
+  background: #c42b1c;
 }
 
 kbd {
@@ -307,48 +377,6 @@ kbd {
   background: var(--canvas);
   border-right: 1px solid var(--line);
   overflow: hidden;
-}
-
-.library-toolbar {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 3px;
-}
-
-.library-toolbar h1 {
-  flex: 1 0 100%;
-  margin: 0;
-  white-space: nowrap;
-  font-family: Georgia, "Noto Serif TC", serif;
-  font-size: 24px;
-  font-weight: 500;
-  letter-spacing: -0.03em;
-}
-
-.library-actions {
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  flex-wrap: wrap;
-  gap: 5px;
-}
-
-.library-actions .compact-action {
-  min-height: 32px;
-  padding: 0 8px;
-  font-size: 11px;
-  white-space: nowrap;
-}
-
-.library-subtitle {
-  margin: 0 0 16px;
-  color: var(--muted);
-  font-size: 12px;
-  line-height: 1.5;
 }
 
 .search-box {
@@ -1267,6 +1295,16 @@ kbd {
 }
 
 @media (max-width: 900px) {
+  .page-header {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .header-actions {
+    justify-content: flex-start;
+  }
+
   .sidebar {
     width: 220px;
     flex-basis: 220px;
@@ -1329,16 +1367,6 @@ kbd {
   .library-panel {
     padding-right: 10px;
     padding-left: 10px;
-  }
-
-  .library-toolbar {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
-  .library-actions {
-    width: 100%;
-    justify-content: flex-start;
   }
 
   .settings-modal {

@@ -142,6 +142,21 @@ function App() {
     localStorage.setItem(sidebarStorageKey, String(collapsed));
   }
 
+  async function runWindowAction(action: "minimize" | "toggleMaximize" | "close") {
+    const currentWindow = getCurrentWindow();
+    try {
+      if (action === "minimize") {
+        await currentWindow.minimize();
+      } else if (action === "toggleMaximize") {
+        await currentWindow.toggleMaximize();
+      } else {
+        await currentWindow.close();
+      }
+    } catch (cause) {
+      setError(`無法操作視窗：${String(cause)}`);
+    }
+  }
+
   function dismissWelcome() {
     localStorage.setItem(onboardingStorageKey, "true");
     setShowWelcome(false);
@@ -728,40 +743,67 @@ function App() {
       </aside>
 
       <section className="main-panel">
+        <header className="page-header" data-tauri-drag-region>
+          <div>
+            <span className="eyebrow">個人工作區</span>
+            <h2 className="page-title">
+              <BrandMark className="page-title-mark" />
+              提示詞
+            </h2>
+            <p>整理常用內容，需要時快速複製。</p>
+          </div>
+          <div className="header-actions">
+            <button
+              className="button button-secondary shortcut-action"
+              onClick={() => void openQuickWindow()}
+              title={`開啟取用視窗 (${shortcut})`}
+            >
+              <span className="shortcut-action-label">開啟取用視窗</span>
+              <kbd>{shortcut}</kbd>
+            </button>
+            <button className="button button-secondary" onClick={() => setShowImporter(true)}>
+              匯入
+            </button>
+            <button
+              className="button button-primary"
+              onClick={() => {
+                if (confirmDiscardChanges()) resetEditor();
+              }}
+            >
+              新增提示詞
+            </button>
+            <div className="window-controls" aria-label="視窗控制">
+              <button
+                type="button"
+                onClick={() => void runWindowAction("minimize")}
+                title="最小化"
+                aria-label="最小化視窗"
+              >
+                <span aria-hidden="true">−</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => void runWindowAction("toggleMaximize")}
+                title="最大化或還原"
+                aria-label="最大化或還原視窗"
+              >
+                <span aria-hidden="true">□</span>
+              </button>
+              <button
+                className="window-close"
+                type="button"
+                onClick={() => void runWindowAction("close")}
+                title="關閉"
+                aria-label="關閉視窗"
+              >
+                <span aria-hidden="true">×</span>
+              </button>
+            </div>
+          </div>
+        </header>
+
         <div className="workspace">
           <section className="library-panel">
-            <div className="library-toolbar">
-              <h1>提示詞</h1>
-              <div className="library-actions">
-                <button
-                  className="button button-secondary shortcut-action"
-                  onClick={() => void openQuickWindow()}
-                  title={`開啟取用視窗 (${shortcut})`}
-                >
-                  <span className="shortcut-action-label">取用視窗</span>
-                  <kbd>{shortcut}</kbd>
-                </button>
-                <button
-                  className="button button-secondary compact-action"
-                  onClick={() => setShowImporter(true)}
-                  title="批次匯入"
-                  aria-label="批次匯入"
-                >
-                  匯入
-                </button>
-                <button
-                  className="button button-primary compact-action"
-                  onClick={() => {
-                    if (confirmDiscardChanges()) resetEditor();
-                  }}
-                  title="新增提示詞"
-                  aria-label="新增提示詞"
-                >
-                  + 新增
-                </button>
-              </div>
-            </div>
-            <p className="library-subtitle">整理常用內容，需要時快速複製。</p>
             <label className="search-box">
               <span aria-hidden="true">⌕</span>
               <input
