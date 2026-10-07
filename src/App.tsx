@@ -142,15 +142,19 @@ function App() {
     localStorage.setItem(sidebarStorageKey, String(collapsed));
   }
 
-  async function runWindowAction(action: "minimize" | "toggleMaximize" | "close") {
+  async function runWindowAction(
+    action: "minimize" | "toggleMaximize" | "close" | "startDragging",
+  ) {
     const currentWindow = getCurrentWindow();
     try {
       if (action === "minimize") {
         await currentWindow.minimize();
       } else if (action === "toggleMaximize") {
         await currentWindow.toggleMaximize();
-      } else {
+      } else if (action === "close") {
         await currentWindow.close();
+      } else {
+        await currentWindow.startDragging();
       }
     } catch (cause) {
       setError(`無法操作視窗：${String(cause)}`);
@@ -692,6 +696,51 @@ function App() {
 
   return (
     <main className={`app-shell ${sidebarCollapsed ? "sidebar-collapsed" : ""}`} data-theme={theme}>
+      <div
+        className="window-chrome"
+        onMouseDown={(event) => {
+          if (
+            event.button !== 0 ||
+            (event.target instanceof Element && event.target.closest("button"))
+          ) {
+            return;
+          }
+          void runWindowAction("startDragging");
+        }}
+        onDoubleClick={(event) => {
+          if (event.target instanceof Element && event.target.closest("button")) return;
+          void runWindowAction("toggleMaximize");
+        }}
+      >
+        <div className="window-controls" aria-label="視窗控制">
+          <button
+            type="button"
+            onClick={() => void runWindowAction("minimize")}
+            title="最小化"
+            aria-label="最小化視窗"
+          >
+            <span aria-hidden="true">−</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => void runWindowAction("toggleMaximize")}
+            title="最大化或還原"
+            aria-label="最大化或還原視窗"
+          >
+            <span aria-hidden="true">□</span>
+          </button>
+          <button
+            className="window-close"
+            type="button"
+            onClick={() => void runWindowAction("close")}
+            title="關閉"
+            aria-label="關閉視窗"
+          >
+            <span aria-hidden="true">×</span>
+          </button>
+        </div>
+      </div>
+
       <aside className={`sidebar ${sidebarCollapsed ? "" : "is-expanded"}`}>
         <div className="sidebar-head">
           <div className="brand">
@@ -743,7 +792,7 @@ function App() {
       </aside>
 
       <section className="main-panel">
-        <header className="page-header" data-tauri-drag-region>
+        <header className="page-header">
           <div>
             <span className="eyebrow">個人工作區</span>
             <h2 className="page-title">
@@ -772,33 +821,6 @@ function App() {
             >
               新增提示詞
             </button>
-            <div className="window-controls" aria-label="視窗控制">
-              <button
-                type="button"
-                onClick={() => void runWindowAction("minimize")}
-                title="最小化"
-                aria-label="最小化視窗"
-              >
-                <span aria-hidden="true">−</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => void runWindowAction("toggleMaximize")}
-                title="最大化或還原"
-                aria-label="最大化或還原視窗"
-              >
-                <span aria-hidden="true">□</span>
-              </button>
-              <button
-                className="window-close"
-                type="button"
-                onClick={() => void runWindowAction("close")}
-                title="關閉"
-                aria-label="關閉視窗"
-              >
-                <span aria-hidden="true">×</span>
-              </button>
-            </div>
           </div>
         </header>
 

@@ -113,12 +113,28 @@ textarea:focus-visible {
 }
 
 .app-shell {
+  position: relative;
   display: flex;
   min-height: 0;
+  padding-top: 34px;
   overflow: hidden;
   color: var(--ink);
   background: var(--canvas);
   overscroll-behavior: none;
+}
+
+.window-chrome {
+  position: absolute;
+  z-index: 5;
+  inset: 0 0 auto;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0 8px;
+  background: var(--paper);
+  border-bottom: 1px solid var(--line);
+  user-select: none;
 }
 
 .sidebar {
@@ -319,15 +335,12 @@ textarea:focus-visible {
 .window-controls {
   display: flex;
   align-items: center;
-  gap: 3px;
-  margin-left: 4px;
-  padding-left: 10px;
-  border-left: 1px solid var(--line);
+  gap: 0;
 }
 
 .window-controls button {
-  width: 32px;
-  height: 32px;
+  width: 46px;
+  height: 34px;
   display: grid;
   place-items: center;
   padding: 0;
