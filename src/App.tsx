@@ -761,7 +761,6 @@ function App() {
         </div>
 
         <nav className="primary-nav" aria-label="主要功能">
-          <span className="nav-section-label">工作區</span>
           <button className="nav-item active" title="提示詞" aria-label="提示詞">
             <span aria-hidden="true">▤</span> 提示詞
             <span className="nav-count">{prompts.length}</span>
@@ -777,18 +776,15 @@ function App() {
           >
             <span aria-hidden="true">⚙</span> 設定
           </button>
-        </nav>
-
-        <div className="sidebar-bottom">
           <button
             className="nav-item"
             onClick={() => setShowWelcome(true)}
-            title="查看提示"
-            aria-label="查看提示"
+            title="查看說明"
+            aria-label="查看說明"
           >
-            <span aria-hidden="true">?</span> 查看提示
+            <span aria-hidden="true">?</span> 查看說明
           </button>
-        </div>
+        </nav>
       </aside>
 
       <section className="main-panel">
@@ -986,7 +982,7 @@ function App() {
               className="text-button import-help-link"
               onClick={() => setShowImportHelp(true)}
             >
-              查看匯入格式與範例
+              匯入格式詳細內容
             </button>
             <div className="dialog-actions">
               <button className="button button-secondary" onClick={() => setShowImporter(false)}>
@@ -1208,25 +1204,47 @@ function App() {
           >
             <div className="dialog-heading">
               <span className="eyebrow">批次匯入</span>
-              <h2 id="import-help-title">格式與範例</h2>
+              <h2 id="import-help-title">匯入格式詳細內容</h2>
               <p>
                 可一次選取多個 Markdown 檔案、匯入含有 .md 檔案的 ZIP，或貼上 JSON。
                 ZIP 內的子資料夾也會一併搜尋。
               </p>
             </div>
             <div className="import-format-list">
-              <p><strong>JSON 格式</strong>：最上層為提示詞陣列，或包含 <code>prompts</code> 陣列的物件。</p>
-              <pre>{`[
-  {
-    "title": "程式碼審查",
-    "content": "請檢查 {檔案} 的程式碼，並列出改善建議。"
-  }
-]`}</pre>
-              <p>每筆都必須有非空的 <code>title</code> 和字串 <code>content</code>。單次最多 500 筆、文字總量 10 MB；遇到同名項目可選擇覆寫或略過。</p>
+              <h3>JSON 文字</h3>
+              <p>
+                最外層可直接使用陣列，或使用包含 <code>prompts</code> 陣列的物件。
+                每筆資料都必須有非空字串 <code>title</code> 與字串 <code>content</code>。
+              </p>
+              <pre>{`{
+  "prompts": [
+    {
+      "title": "程式碼審查",
+      "content": "請檢查 {檔案} 的程式碼，並列出改善建議。"
+    }
+  ]
+}`}</pre>
+              <h3>Markdown 檔案</h3>
+              <p>可一次選取多個 <code>.md</code> 檔。建議用 YAML frontmatter 指定標題：</p>
+              <pre>{`---
+title: 程式碼審查
+category: 開發
+---
+請檢查 {檔案} 的程式碼，並列出改善建議。`}</pre>
+              <p>
+                沒有 frontmatter 時，若檔案以 <code># 標題</code> 開頭，會使用該標題；
+                否則以檔名作為標題。Frontmatter 中的其他 YAML 欄位會保留。
+              </p>
+              <h3>ZIP 與匯入限制</h3>
+              <ul>
+                <li>ZIP 會搜尋所有資料夾中的 <code>.md</code> 檔，不需先解壓縮。</li>
+                <li>每個 Markdown 檔最多 2 MB；每批最多 500 筆，Markdown 文字總量最多 10 MB。</li>
+                <li>遇到同名提示詞時，可逐筆選擇覆寫或略過。</li>
+              </ul>
             </div>
             <div className="dialog-actions">
               <button className="button button-secondary" onClick={() => setShowImportHelp(false)}>
-                返回匯入
+                返回
               </button>
             </div>
           </section>
@@ -1243,32 +1261,37 @@ function App() {
             onClick={(event) => event.stopPropagation()}
           >
             <BrandMark className="welcome-mark" />
-            <span className="eyebrow">WELCOME TO PROMPT CLIP</span>
-            <h2 id="welcome-title">讓常用提示詞，隨手可得</h2>
-            <p>在本機整理、搜尋並重複使用你的 AI 提示詞，內容只儲存在自己的資料夾。</p>
-            <ol className="welcome-steps">
+            <span className="eyebrow">PROMPT CLIP 使用手冊</span>
+            <h2 id="welcome-title">提示詞管理說明</h2>
+            <p className="manual-intro">
+              在本機整理、搜尋並重複使用提示詞。內容以 Markdown 檔案儲存在所選資料夾中。
+            </p>
+            <ol className="manual-sections">
               <li>
-                <strong>建立提示詞</strong>
-                <span>新增內容，支援 Markdown 與可填寫變數。</span>
+                <strong>新增與編輯</strong>
+                <p>選擇「新增提示詞」建立項目，填寫標題與內容後按「儲存」。選取清單中的提示詞即可編輯；不需要的項目可按「刪除」。內容支援 Markdown，並可用 {`{變數名稱}`} 加入取用時填寫的欄位。</p>
               </li>
               <li>
-                <strong>快速取用</strong>
-                <span>按「取用」複製，或開啟精簡取用視窗。</span>
+                <strong>搜尋與取用</strong>
+                <p>使用搜尋欄快速篩選提示詞，按「取用」即可複製內容。若內容含有 {`{變數}`}，先填寫欄位再複製。也可使用快捷鍵 <kbd>Ctrl+Shift+Space</kbd> 開啟精簡取用視窗。</p>
               </li>
               <li>
-                <strong>自訂工作區</strong>
-                <span>側邊欄可收合；外觀與資料夾可在「設定」調整。</span>
+                <strong>管理資料與偏好</strong>
+                <p>在「設定」中調整外觀、提示詞資料夾與快捷鍵。切換資料夾只會改用該資料夾，不會搬移原有檔案；提示詞以 Markdown 檔案儲存。側邊欄可收合。</p>
               </li>
               <li>
                 <strong>批次匯入</strong>
-                <span>可匯入多個 Markdown、含子資料夾的 ZIP，或 JSON；最多 500 筆、10 MB。</span>
+                <p>使用「匯入」可加入多個 Markdown 檔、ZIP 壓縮檔或 JSON 文字。遇到同名提示詞時可逐筆覆寫或略過。按下方按鈕查看完整格式與限制。</p>
               </li>
             </ol>
-            <p className="welcome-shortcut">
-              快捷鍵提示會在滑鼠移到取用視窗按鈕時顯示；匯入視窗也有格式範例。
-            </p>
+            <button
+              className="text-button import-help-link manual-import-help"
+              onClick={() => setShowImportHelp(true)}
+            >
+              匯入格式詳細內容
+            </button>
             <div className="dialog-actions">
-              <button className="button button-primary" onClick={dismissWelcome}>開始使用</button>
+              <button className="button button-primary" onClick={dismissWelcome}>關閉說明</button>
             </div>
           </section>
         </div>

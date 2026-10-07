@@ -217,16 +217,11 @@ textarea:focus-visible {
   gap: 3px;
 }
 
-.nav-section-label,
 .eyebrow {
   color: var(--muted);
   font-size: 11px;
   font-weight: 650;
   letter-spacing: 0.045em;
-}
-
-.nav-section-label {
-  padding: 0 10px 8px;
 }
 
 .nav-item {
@@ -265,12 +260,6 @@ textarea:focus-visible {
   margin-left: auto;
   color: var(--muted);
   font-size: 12px;
-}
-
-.sidebar-bottom {
-  margin-top: auto;
-  padding-top: 20px;
-  border-top: 1px solid var(--sidebar-line);
 }
 
 .main-panel {
@@ -1054,6 +1043,21 @@ kbd {
   line-height: 1.65;
 }
 
+.import-format-list h3 {
+  margin: 18px 0 5px;
+  color: var(--ink);
+  font-size: 14px;
+}
+
+.import-format-list h3:first-child {
+  margin-top: 0;
+}
+
+.import-format-list ul {
+  margin: 8px 0 0;
+  padding-left: 20px;
+}
+
 .import-format-list pre {
   max-height: 240px;
   overflow: auto;
@@ -1207,7 +1211,7 @@ kbd {
 }
 
 .sidebar-collapsed .brand > div:last-child,
-.sidebar-collapsed .nav-section-label {
+.sidebar-collapsed .nav-count {
   display: none;
 }
 
@@ -1225,21 +1229,9 @@ kbd {
   font-size: 16px;
 }
 
-.sidebar-collapsed .nav-count {
-  display: none;
-}
-
-.sidebar-collapsed .sidebar-bottom {
-  display: flex;
-  align-items: center;
-  flex-direction: column;
-  justify-content: center;
-  padding-top: 12px;
-}
-
 .welcome-modal {
-  width: min(100%, 480px);
-  padding: 32px;
+  width: min(100%, 640px);
+  padding: 28px 32px;
 }
 
 .welcome-mark {
@@ -1256,29 +1248,34 @@ kbd {
   letter-spacing: -0.025em;
 }
 
-.welcome-modal > p {
+.manual-intro {
+  margin: 10px 0 0;
   color: var(--muted);
   font-size: 14px;
   line-height: 1.7;
 }
 
-.welcome-steps {
+.manual-sections {
   display: grid;
-  gap: 14px;
-  margin: 24px 0 18px;
+  gap: 10px;
+  margin: 20px 0 12px;
   padding: 0;
   list-style: none;
-  counter-reset: welcome;
+  counter-reset: manual;
 }
 
-.welcome-steps li {
+.manual-sections li {
   display: grid;
-  grid-template-columns: 30px 1fr;
-  gap: 2px 10px;
-  counter-increment: welcome;
+  grid-template-columns: 30px minmax(0, 1fr);
+  gap: 3px 10px;
+  padding: 11px 12px;
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  counter-increment: manual;
 }
 
-.welcome-steps li::before {
+.manual-sections li::before {
   grid-row: span 2;
   width: 28px;
   height: 28px;
@@ -1287,20 +1284,34 @@ kbd {
   color: var(--accent-dark);
   background: var(--accent-soft);
   border-radius: 50%;
-  content: counter(welcome);
+  content: counter(manual);
   font-size: 12px;
   font-weight: 700;
 }
 
-.welcome-steps strong {
+.manual-sections strong {
   font-size: 14px;
 }
 
-.welcome-steps span,
-.welcome-shortcut {
+.manual-sections p {
+  grid-column: 2;
+  margin: 0;
   color: var(--muted);
   font-size: 12px;
   line-height: 1.6;
+}
+
+.manual-sections kbd {
+  padding: 1px 5px;
+  color: var(--ink);
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  font: inherit;
+}
+
+.manual-import-help {
+  margin-top: 2px;
 }
 
 .welcome-modal .dialog-actions .button {
@@ -1344,7 +1355,6 @@ kbd {
   }
 
   .sidebar .brand > div:last-child,
-  .sidebar .nav-section-label,
   .sidebar .nav-count {
     display: none;
   }
@@ -1357,12 +1367,6 @@ kbd {
 
   .sidebar .nav-item > span:first-child {
     font-size: 14px;
-  }
-
-  .sidebar .sidebar-bottom {
-    display: flex;
-    align-items: center;
-    justify-content: center;
   }
 
   .sidebar .sidebar-toggle {
@@ -1392,6 +1396,10 @@ kbd {
 }
 
 @media (max-width: 520px) {
+  .welcome-modal {
+    padding: 20px;
+  }
+
   .settings-modal {
     min-height: 0;
     display: flex;
