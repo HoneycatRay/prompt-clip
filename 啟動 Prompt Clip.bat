@@ -1,5 +1,9 @@
 @echo off
 setlocal
+set "APP=%~dp0prompt-clip-latest.exe"
+if exist "%APP%" goto launch
+set "APP=%~dp0PromptClipPortable\prompt-clip-latest.exe"
+if exist "%APP%" goto launch
 set "APP=%~dp0prompt-clip-logo.exe"
 if exist "%APP%" goto launch
 set "APP=%~dp0PromptClipPortable\prompt-clip-logo.exe"

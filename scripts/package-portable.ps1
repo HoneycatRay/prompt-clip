@@ -6,6 +6,7 @@ $cargo = Join-Path $cargoBin "cargo.exe"
 $targetDir = Join-Path $env:USERPROFILE ".cargo\target\prompt-clip-portable"
 $portableDir = Join-Path $projectRoot "PromptClipPortable"
 $builtApp = Join-Path $targetDir "release\prompt-clip.exe"
+$portableApp = Join-Path $portableDir "prompt-clip-latest.exe"
 
 if (-not (Test-Path $cargo)) {
   throw "Rust Cargo was not found at $cargo. Install Rust before packaging."
@@ -29,6 +30,6 @@ if (-not (Test-Path $builtApp)) {
 }
 
 New-Item -ItemType Directory -Path $portableDir -Force | Out-Null
-Copy-Item -LiteralPath $builtApp -Destination (Join-Path $portableDir "prompt-clip-logo.exe") -Force
+Copy-Item -LiteralPath $builtApp -Destination $portableApp -Force
 Copy-Item -LiteralPath (Join-Path $projectRoot "啟動 Prompt Clip.bat") -Destination $portableDir -Force
 Write-Output "Portable app created at $portableDir"
