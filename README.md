@@ -13,11 +13,16 @@ Prompt Clip 是以 Tauri 2、React、TypeScript 與 Rust 開發的桌面提示�
 
 ## 啟動應用程式
 
-### 使用已建置的 Windows 單一檔案
+### 一般使用者：下載 Windows 版本
 
-在 Windows 10/11 x64 上，直接雙擊 `release/Prompt Clip.exe` 即可啟動，不需要 `.bat` 啟動器或命令提示字元視窗。目標電腦需安裝 Microsoft Edge WebView2 Runtime。
+Windows 10/11 x64 使用者可直接[下載 Prompt Clip.exe](downloads/Prompt%20Clip.exe)，或從 GitHub 儲存庫下載 ZIP 並解壓縮後，開啟 `downloads` 資料夾中的 `Prompt Clip.exe`。直接雙擊即可啟動，不需要安裝 Node.js、Rust、`.bat` 啟動器或命令提示字元視窗。目標電腦需安裝 Microsoft Edge WebView2 Runtime。
 
-若從原始碼自行產生此檔案，請先安裝 Node.js、Rust 工具鏈及 Windows C++ Build Tools，然後在專案根目錄執行：
+此執行檔是 Windows x64 版本；其他平台請依下方步驟從原始碼建置。
+目前執行檔未經數位簽章，Windows SmartScreen 可能會顯示未知發行者警告；執行前請確認檔案是從本專案 GitHub 儲存庫下載。
+
+### 開發者：從原始碼建置 Windows 單一檔案
+
+先安裝 Node.js、Rust 工具鏈及 Windows C++ Build Tools，然後在專案根目錄執行：
 
 ```powershell
 npm install
@@ -53,6 +58,7 @@ npm run tauri dev
 ```text
 .
 ├── public/                 前端靜態檔案與品牌圖示
+├── downloads/              可直接執行的 Windows x64 版本
 ├── scripts/                Tauri 執行環境與 Windows 建置腳本
 ├── src/                    React / TypeScript 介面與樣式
 ├── src-tauri/
