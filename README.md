@@ -1,65 +1,76 @@
 # Prompt Clip
 
-Prompt Clip is a cross-platform desktop app for keeping and quickly copying reusable AI prompts. It is built with Tauri v2, React, TypeScript, and Vite.
+Prompt Clip 是以 Tauri 2、React、TypeScript 與 Rust 開發的桌面提示詞管理工具。提示詞以 Markdown 檔案儲存在本機，可搜尋、編輯、匯入並快速複製使用。
 
-## Development
+## 使用方式
 
-Install Node.js and the Rust toolchain. On Windows, also install the Microsoft C++ Build Tools and WebView2 Runtime.
+- 在提示詞頁面新增、編輯、搜尋或刪除提示詞；內容支援 Markdown 與 `{變數}`。
+- 按「取用」複製提示詞。內容有變數時，先填入欄位再複製。
+- 按 `Ctrl+Shift+Space` 開啟精簡取用視窗；可在「設定 → 快捷鍵」變更組合鍵。
+- 「設定 → 資料與儲存」可選擇另一個既有資料夾。切換資料夾不會搬移檔案。
+- 「匯入」支援多個 Markdown 檔、ZIP 壓縮檔與 JSON；同名提示詞可逐筆覆寫或略過。
+- 側邊欄的「查看說明」可隨時開啟應用程式操作手冊。應用程式啟動時不會自動彈出說明視窗。
 
-Prompt Markdown files are stored in the app's local `Prompts` data folder by default. Use **選擇其他資料夾** in the app to use another existing folder; the selected folder is remembered on this device.
+## 啟動應用程式
 
-The `npm run tauri` command automatically adds Rust's standard `~/.cargo/bin` directory to its `PATH`. On Windows it also uses a build output directory without spaces by default, which is useful when the project path contains spaces. If Rust is installed in a non-standard location, add its `bin` directory to `PATH` before starting the app.
+### 使用已建置的 Windows 單一檔案
 
-From the project root, install dependencies once and start the desktop app:
+在 Windows 10/11 x64 上，直接雙擊 `release/Prompt Clip.exe` 即可啟動，不需要 `.bat` 啟動器或命令提示字元視窗。目標電腦需安裝 Microsoft Edge WebView2 Runtime。
+
+若從原始碼自行產生此檔案，請先安裝 Node.js、Rust 工具鏈及 Windows C++ Build Tools，然後在專案根目錄執行：
+
+```powershell
+npm install
+npm run build:windows
+```
+
+成功後開啟 `release/Prompt Clip.exe`。若要建立一般安裝程式，執行 `npm run tauri -- build`，安裝檔會輸出至 `%USERPROFILE%\.cargo\target\prompt-clip\release\bundle\`。
+
+### 開發模式
+
+安裝 Node.js、Rust 工具鏈及 Windows C++ Build Tools，並確保系統可使用 Microsoft Edge WebView2 Runtime。首次在專案根目錄安裝相依套件，之後即可啟動開發版：
 
 ```powershell
 npm install
 npm run tauri dev
 ```
 
-Use **新增提示詞** to create an item, select one from the library to edit it, and choose **刪除** to remove it and its `.md` file. The app lists Markdown files in the selected folder and saves Prompts with YAML frontmatter and Markdown content.
+`npm run tauri` 會協助加入標準 Rust Cargo 執行路徑；Windows 預設將 Cargo 建置輸出放在 `%USERPROFILE%\.cargo\target\prompt-clip\`，避免專案路徑中的空格影響建置。若 Rust 安裝在非標準位置，請先將 Cargo 的 `bin` 目錄加入 `PATH`。
 
-Press **Ctrl+Shift+Space** to show or hide the compact Prompt-use window. Change the shortcut under **設定** in the main app. The compact window only searches and copies Prompts; use **回到主 App** to manage them. Closing either window hides it; click the tray icon to open the main app, right-click for the menu, or choose **離開** to quit.
+## 修改程式
 
-The sidebar can be collapsed and expanded. Its **提示詞**, **設定**, and **查看說明** items are grouped together; the guide includes a step-by-step manual and a button for detailed import formats. Open **設定** to choose a light, dark, or system-matched theme, manage the Prompt folder, and change the global shortcut. The compact-window shortcut appears beside its label when you hover over or focus its button.
+- 前端介面與操作邏輯：`src/App.tsx`
+- 前端樣式：`src/App.css`
+- React 進入點：`src/main.tsx`
+- Rust 命令、檔案存取、系統匣與視窗行為：`src-tauri/src/lib.rs`
+- Tauri 視窗、權限與建置設定：`src-tauri/tauri.conf.json`、`src-tauri/capabilities/`
+- 應用程式品牌圖示：`public/prompt-clip-mark.svg` 與 `src-tauri/icons/`
 
-The main app can import multiple `.md` files, `.zip` archives (including Markdown files in nested folders), or JSON text. Select **匯入格式詳細內容** in the guide or import dialog for detailed instructions. The JSON format is an array of Prompt records, or an object containing a `prompts` array:
+前端修改可用 `npm run tauri dev` 即時預覽；產生正式前端建置請執行 `npm run build`，產生 Windows 單一執行檔則執行 `npm run build:windows`。
 
-```json
-[
-  {
-    "title": "程式碼審查",
-    "content": "請檢查 {檔案} 的程式碼，並列出具體改善建議。"
-  },
-  {
-    "title": "會議摘要",
-    "content": "請將以下逐字稿整理為重點與待辦事項：\n\n{逐字稿}"
-  }
-]
+## 專案架構
+
+```text
+.
+├── public/                 前端靜態檔案與品牌圖示
+├── scripts/                Tauri 執行環境與 Windows 建置腳本
+├── src/                    React / TypeScript 介面與樣式
+├── src-tauri/
+│   ├── capabilities/       Tauri 視窗權限設定
+│   ├── icons/              桌面程式圖示
+│   └── src/                Rust 桌面程式邏輯
+├── index.html              前端 HTML 入口
+├── package.json            npm 指令與 JavaScript 相依套件
+└── vite.config.ts          Vite 開發伺服器設定
 ```
 
-On a name conflict, choose **覆寫** or **略過** for each Prompt. Imports are limited to 500 Prompts and 10 MB of combined Markdown content per batch.
+`node_modules/`、`dist/`、Rust `target/` 與 `release/` 都是本機相依套件或建置輸出，不需提交至 GitHub。`package-lock.json` 與 `src-tauri/Cargo.lock` 則應保留，以鎖定相依套件版本。
 
-Click **取用** beside a Prompt (or click it in the compact window) to copy it. Prompts containing `{variable}` placeholders open a fill-in dialog; submitting copies the completed text to the system clipboard and hides that window. Select an item in the main list to edit it.
-
-Run the frontend production build and Rust filesystem tests with:
+## 驗證
 
 ```powershell
+$env:PATH = "$env:USERPROFILE\.cargo\bin;$env:PATH"
+$env:CARGO_TARGET_DIR = "$env:USERPROFILE\.cargo\target\prompt-clip-portable"
 npm run build
 cargo test --manifest-path src-tauri\Cargo.toml
 ```
-
-Keep the same Cargo environment variables set for the Rust test command on Windows when the project path contains spaces. On macOS or Windows when the project path has no spaces, the app can be started with:
-
-```sh
-npm install
-npm run tauri dev
-```
-
-Create a Windows portable folder with the root launcher by running:
-
-```powershell
-.\scripts\package-portable.ps1
-```
-
-The script builds the app into `PromptClipPortable`; double-click `啟動 Prompt Clip.bat` in the project folder to open that build. To share the portable version, share the complete `PromptClipPortable` folder, which includes its own `啟動 Prompt Clip.bat`. The target PC needs the Microsoft Edge WebView2 Runtime. The native app, tray, and installer icons are generated from `public/prompt-clip-mark.svg`. A regular installer can be built with `npm run tauri -- build`.

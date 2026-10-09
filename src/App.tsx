@@ -21,7 +21,6 @@ type PromptDraft = {
 const directoryStorageKey = "prompt-clip.prompt-directory";
 const themeStorageKey = "prompt-clip.theme";
 const sidebarStorageKey = "prompt-clip.sidebar-collapsed";
-const onboardingStorageKey = "prompt-clip.onboarding-complete";
 const quickWindow = getCurrentWindow().label === "quick";
 type ThemePreference = "system" | "light" | "dark";
 type Theme = Exclude<ThemePreference, "system">;
@@ -97,12 +96,6 @@ function App() {
   const [showWelcome, setShowWelcome] = useState(false);
 
   useEffect(() => {
-    if (!quickWindow && localStorage.getItem(onboardingStorageKey) !== "true") {
-      setShowWelcome(true);
-    }
-  }, []);
-
-  useEffect(() => {
     const media = window.matchMedia("(prefers-color-scheme: dark)");
     const updateSystemTheme = () => setSystemPrefersDark(media.matches);
     updateSystemTheme();
@@ -162,7 +155,6 @@ function App() {
   }
 
   function dismissWelcome() {
-    localStorage.setItem(onboardingStorageKey, "true");
     setShowWelcome(false);
   }
 
