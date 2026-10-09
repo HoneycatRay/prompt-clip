@@ -12,6 +12,7 @@ dist
 dist-ssr
 *.local
 target/
+release/
 
 # Editor directories and files
 .vscode/*
@@ -23,5 +24,3 @@ target/
 *.njsproj
 *.sln
 *.sw?
-prompt_clip_prompt.md
-PromptClipPortable/
